@@ -20,6 +20,20 @@ class CharacterResponse(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     relationship_ids: list[str] = Field(default_factory=list)
 
+router = APIRouter(prefix="/characters", tags=["characters"])
+
+
+class CharacterResponse(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    personality: list[str] = Field(default_factory=list)
+    goals: list[str] = Field(default_factory=list)
+    current_location: str | None = None
+    alive: bool = True
+    aliases: list[str] = Field(default_factory=list)
+    relationship_ids: list[str] = Field(default_factory=list)
+
 
 class CharacterListResponse(BaseModel):
     characters: list[CharacterResponse]
@@ -29,6 +43,8 @@ class CharacterListResponse(BaseModel):
 def list_characters(story_id: str, branch_id: str = "canon"):
     """List all characters in a story world."""
     ws = get_world_state(story_id, branch_id)
+    if ws is None and branch_id != "canon":
+        ws = get_world_state(story_id, "canon")
     if ws is None:
         raise HTTPException(404, f"World state not found for story '{story_id}'")
 
@@ -43,6 +59,8 @@ def list_characters(story_id: str, branch_id: str = "canon"):
 def get_character(story_id: str, character_id: str, branch_id: str = "canon"):
     """Get a specific character."""
     ws = get_world_state(story_id, branch_id)
+    if ws is None and branch_id != "canon":
+        ws = get_world_state(story_id, "canon")
     if ws is None:
         raise HTTPException(404, "World state not found")
 
@@ -62,6 +80,8 @@ def get_character_knowledge(
 ):
     """Get knowledge facts available to a character at a given sequence."""
     ws = get_world_state(story_id, branch_id)
+    if ws is None and branch_id != "canon":
+        ws = get_world_state(story_id, "canon")
     if ws is None:
         raise HTTPException(404, "World state not found")
 

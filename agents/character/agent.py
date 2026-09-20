@@ -25,11 +25,12 @@ class CharacterAgent:
                 self.llm = None
 
     def respond(self, request: CharacterRequest) -> AgentResult:
-
         world_state = get_world_state(
             request.story_id,
             request.branch_id,
         )
+        if world_state is None and request.branch_id != "canon":
+            world_state = get_world_state(request.story_id, "canon")
 
         if world_state is None:
             return AgentResult(
@@ -40,7 +41,6 @@ class CharacterAgent:
         character = world_state.get_character(
             request.character_id
         )
-
         if character is None:
             return AgentResult(
                 success=False,

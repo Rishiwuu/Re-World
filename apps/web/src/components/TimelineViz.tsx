@@ -191,15 +191,6 @@ export default function TimelineViz() {
       .attr("stroke-width", 3.5)
       .attr("stroke-linecap", "round");
 
-    g.append("text")
-      .attr("x", 0)
-      .attr("y", 22)
-      .attr("fill", mainColor)
-      .attr("font-family", "monospace")
-      .attr("font-size", "10px")
-      .attr("font-weight", "bold")
-      .text("main timeline");
-
     // 3. Draw Paths for all Branches (Direct & Child)
     allBranches.forEach((b) => {
       const visual = branchVisualMap[b.id];
@@ -237,15 +228,6 @@ export default function TimelineViz() {
         .attr("stroke-width", b.id === branchId ? 3 : 2)
         .attr("stroke-dasharray", b.id === branchId ? "none" : "4 4")
         .attr("opacity", b.id === branchId ? 1 : 0.85);
-
-      g.append("text")
-        .attr("x", Math.min(branchLineX + 8, innerWidth - 100))
-        .attr("y", targetY + (targetY <= 0 ? 18 : -10))
-        .attr("fill", visual.color)
-        .attr("font-family", "monospace")
-        .attr("font-size", "10px")
-        .attr("font-weight", "bold")
-        .text(visual.label);
     });
 
     // 4. Knowledge Horizon vertical barrier
@@ -531,17 +513,14 @@ export default function TimelineViz() {
           </div>
 
           <div className={`hidden sm:flex items-center gap-4 text-xs font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" title="Main Canon Timeline">
               <span className="w-2.5 h-2.5 rounded-full bg-[#d97706] inline-block shadow-sm"></span>
-              <span>Main Timeline</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" title="Branched Timeline">
               <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7] inline-block shadow-sm"></span>
-              <span>Branched Timeline</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" title="Child Branched Timeline">
               <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block shadow-sm"></span>
-              <span>Child Branched Timeline</span>
             </div>
           </div>
         </div>
