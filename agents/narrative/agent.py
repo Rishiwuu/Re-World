@@ -93,9 +93,18 @@ class NarrativeAgent:
             ("human", prompt),
         ])
 
+        raw_content = getattr(response, 'content', response)
+        if isinstance(raw_content, list):
+            output_text = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in raw_content
+            )
+        else:
+            output_text = str(raw_content)
+
         return AgentResult(
             success=True,
-            output=response.content if hasattr(response, 'content') else str(response),
+            output=output_text,
             metadata={
                 "branch_id": branch.id,
                 "consequence": consequence.model_dump(),

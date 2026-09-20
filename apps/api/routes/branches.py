@@ -19,6 +19,20 @@ logger = logging.getLogger("reworld")
 _narrative_agent = None
 
 
+def _extract_text_content(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                parts.append(part.get("text", ""))
+            else:
+                parts.append(str(part))
+        return "".join(parts)
+    return str(content)
+
+
 def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str, str]]:
     """Generate a distinct downstream story based strictly on the user's What-If hypothesis."""
     if not events:
@@ -26,12 +40,8 @@ def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str,
     
     fallback = {
         event.id: {
-            "title": f"Divergence: {event.title}",
-            "description": (
-                f"As a consequence of the timeline premise ('{change}'), "
-                f"{event.title} unfolds differently: {event.description} "
-                f"The characters must now respond to the new timeline."
-            ),
+            "title": event.title,
+            "description": event.description,
         }
         for event in events
     }
@@ -45,34 +55,42 @@ def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str,
         )
         
         prompt = (
-            f"You are a master narrative architect specializing in timeline divergence and alternate reality fiction.\n\n"
-            f"WHAT-IF HYPOTHESIS / TIMELINE DIVERGENCE PREMISE:\n"
+            f"You are a master story author and narrative architect.\n\n"
+            f"WHAT-IF PREMISE / TIMELINE DIVERGENCE:\n"
             f"\"{change}\"\n\n"
+            f"ORIGINAL STORY EVENTS:\n{source}\n\n"
             f"TASK:\n"
-            f"Rewrite each downstream story event below so that it dynamically and logically reflects the cause-and-effect "
-            f"consequences of this hypothesis premise. Show how characters react differently, how plot points shift, "
-            f"and how the story outcome is completely reshaped by this change.\n\n"
-            f"Downstream Events to Rewrite:\n{source}\n\n"
-            f"Output Requirement: Return ONLY a valid JSON array matching this format exactly:\n"
+            f"Rewrite each story event listed above into a new, original, creative story beat that logically and dynamically follows from the WHAT-IF PREMISE.\n"
+            f"Do NOT write meta-commentary like 'As a consequence of the premise...' or 'This unfolds differently...'.\n"
+            f"Instead, WRITE THE ACTUAL ALTERNATE STORY itself! Describe what the characters do, what happens next, and how the plot develops differently.\n\n"
+            f"FORMAT REQUIREMENT:\n"
+            f"Return ONLY a valid JSON array of objects with double quotes for all keys and values. Example:\n"
             f"[\n"
             f"  {{\n"
             f"    \"id\": \"event_id_here\",\n"
-            f"    \"title\": \"Vivid Revised Event Title\",\n"
-            f"    \"description\": \"Detailed 2-3 sentence description of what happens in this alternate timeline.\"\n"
+            f"    \"title\": \"Vivid New Event Title\",\n"
+            f"    \"description\": \"Detailed description of what happens in this alternate story beat.\"\n"
             f"  }}\n"
             f"]"
         )
         
         response = llm.invoke(prompt)
-        content = response.content if isinstance(response.content, str) else str(response.content)
+        content = _extract_text_content(response.content)
         
         # Clean markdown wrappers if present
-        content = re.sub(r"^```json\s*", "", content, flags=re.MULTILINE)
-        content = re.sub(r"^```\s*", "", content, flags=re.MULTILINE)
+        content = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.MULTILINE)
+        content = re.sub(r"\s*```$", "", content, flags=re.MULTILINE)
+        content = content.strip()
         
         match = re.search(r"\[\s*\{.*\}\s*\]", content, re.DOTALL)
         if match:
-            generated = json.loads(match.group(0))
+            raw_json = match.group(0)
+            try:
+                generated = json.loads(raw_json)
+            except json.JSONDecodeError:
+                sanitized = re.sub(r"'([^']*)'", r'"\1"', raw_json)
+                generated = json.loads(sanitized)
+
             for item in generated:
                 event_id = item.get("id")
                 if event_id in fallback and item.get("description"):
@@ -225,7 +243,7 @@ def create_new_branch(request: BranchCreateRequest):
     # generated alternate outcome so the UI can render a real second lane and
     # downstream queries cannot silently use canon as if nothing changed.
     downstream_events = sorted(
-        (e for e in branch_ws.events.values() if e.sequence > request.sequence),
+        (e for e in branch_ws.events.values() if e.sequence >= request.sequence),
         key=lambda e: e.sequence,
     )
     alternate_outcomes = _alternate_outcomes(request.change, downstream_events)

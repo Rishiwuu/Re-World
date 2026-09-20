@@ -16,10 +16,10 @@ def get_llm():
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
 
-    model_name = getattr(settings, "llm_model", "gemini-2.5-flash") or "gemini-2.5-flash"
+    model_name = getattr(settings, "llm_model", "gemini-1.5-flash") or "gemini-1.5-flash"
 
     # Try preferred model or standard Gemini flash models
-    for m in [model_name, "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"]:
+    for m in [model_name, "gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]:
         try:
             return ChatGoogleGenerativeAI(
                 model=m,
