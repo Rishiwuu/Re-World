@@ -131,51 +131,54 @@ export default function TimelineViz() {
     feMerge.append("feMergeNode").attr("in", "coloredBlur");
     feMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
-    // 1. Calculate Multi-Branch Layout Offsets & Colors
-    const directBranches = allBranches.filter(b => !b.parent_branch_id || b.parent_branch_id === "canon");
-    const childBranches = allBranches.filter(b => b.parent_branch_id && b.parent_branch_id !== "canon");
-
-    const branchVisualMap: Record<string, { yOffset: number; color: string; label: string; parentY: number; divSeq: number }> = {};
+    // 1. Calculate Multi-Branch Layout Offsets & Colors (Unlimited Recursive Tree Depth)
     const mainColor = isDarkMode ? "#eab308" : "#d97706";
-    const directBranchColor = isDarkMode ? "#a855f7" : "#7e22ce";
-    const childBranchColor = isDarkMode ? "#ef4444" : "#dc2626";
+    const paletteColors = isDarkMode
+      ? ["#a855f7", "#ef4444", "#3b82f6", "#10b981", "#ec4899", "#f97316", "#06b6d4"]
+      : ["#7e22ce", "#dc2626", "#2563eb", "#059669", "#db2777", "#ea580c", "#0891b2"];
 
-    branchVisualMap["canon"] = { yOffset: 0, color: mainColor, label: "main timeline", parentY: 0, divSeq: 1 };
-
-    let upIndex = 0;
-    let downIndex = 0;
-
-    // Direct branches off main timeline
-    directBranches.forEach((b, idx) => {
-      let y: number;
-      if (idx % 2 === 0) {
-        upIndex++;
-        y = -60 * upIndex;
-      } else {
-        downIndex++;
-        y = 60 * downIndex;
-      }
-      branchVisualMap[b.id] = {
-        yOffset: y,
-        color: directBranchColor,
-        label: idx === 0 ? "branched timeline" : `branched timeline #${idx + 1}`,
-        parentY: 0,
-        divSeq: b.divergence_sequence,
-      };
+    const branchChildrenMap: Record<string, BranchInfo[]> = {};
+    allBranches.forEach(b => {
+      const pId = b.parent_branch_id || "canon";
+      if (!branchChildrenMap[pId]) branchChildrenMap[pId] = [];
+      branchChildrenMap[pId].push(b);
     });
 
-    // Child branches off a branched timeline
-    childBranches.forEach((b) => {
-      const parentVisual = branchVisualMap[b.parent_branch_id || ""] || { yOffset: -60, color: directBranchColor, parentY: 0 };
-      const childY = parentVisual.yOffset <= 0 ? parentVisual.yOffset - 50 : parentVisual.yOffset + 50;
-      branchVisualMap[b.id] = {
-        yOffset: childY,
-        color: childBranchColor,
-        label: "child branched timeline",
-        parentY: parentVisual.yOffset,
-        divSeq: b.divergence_sequence,
-      };
-    });
+    interface BranchVisual {
+      yOffset: number;
+      color: string;
+      parentY: number;
+      divSeq: number;
+      depth: number;
+    }
+
+    const branchVisualMap: Record<string, BranchVisual> = {};
+    branchVisualMap["canon"] = { yOffset: 0, color: mainColor, parentY: 0, divSeq: 1, depth: 0 };
+
+    function positionBranchChildren(parentId: string, parentY: number, parentDepth: number) {
+      const children = branchChildrenMap[parentId] || [];
+      if (children.length === 0) return;
+
+      children.forEach((child, idx) => {
+        const direction = idx % 2 === 0 ? -1 : 1;
+        const step = Math.ceil((idx + 1) / 2) * 55;
+        const childY = parentY + (direction * step);
+
+        const color = paletteColors[(parentDepth + idx) % paletteColors.length];
+
+        branchVisualMap[child.id] = {
+          yOffset: childY,
+          color: color,
+          parentY: parentY,
+          divSeq: child.divergence_sequence,
+          depth: parentDepth + 1,
+        };
+
+        positionBranchChildren(child.id, childY, parentDepth + 1);
+      });
+    }
+
+    positionBranchChildren("canon", 0, 0);
 
     // Determine active divergence sequence if currently on a branch
     const activeBranchInfo = allBranches.find(b => b.id === branchId);

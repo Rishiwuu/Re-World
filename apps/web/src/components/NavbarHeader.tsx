@@ -25,19 +25,6 @@ export function NavbarHeader() {
             <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Canon: Secure</span>
           </div>
 
-          {/* Light / Dark Mode Fast Toggle Button */}
-          <button
-            onClick={toggleDarkMode}
-            className={`p-1.5 rounded-lg border text-xs transition-colors flex items-center justify-center ${
-              isDarkMode 
-                ? "border-white/15 bg-white/5 hover:bg-white/10 text-purple-300" 
-                : "border-slate-200 bg-slate-100 hover:bg-slate-200 text-amber-600"
-            }`}
-            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-          >
-            {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-
           {/* Theme Button */}
           <button
             onClick={() => setShowThemeModal(true)}
