@@ -102,7 +102,7 @@ export default function TimelineViz() {
   }, [events, canonEvents, allBranches, branchMap, currentSequence, branchId, viewMode, characters]);
 
   const renderTimelineView = (svg: d3.Selection<SVGSVGElement, unknown, null, undefined>, width: number, height: number) => {
-    const margin = { top: 70, right: 70, bottom: 70, left: 70 };
+    const margin = { top: 88, right: 70, bottom: 88, left: 70 };
     const innerWidth = Math.max(width - margin.left - margin.right, 300);
     const centerY = height / 2;
 
@@ -135,26 +135,25 @@ export default function TimelineViz() {
     const directBranches = allBranches.filter(b => !b.parent_branch_id || b.parent_branch_id === "canon");
     const childBranches = allBranches.filter(b => b.parent_branch_id && b.parent_branch_id !== "canon");
 
-    const branchVisualMap: Record<string, { yOffset: number; color: string; label: string; parentY: number; divSeq: number }> = {};
-    branchVisualMap["canon"] = { yOffset: 0, color: "#eab308", label: "main timeline", parentY: 0, divSeq: 1 };
+    const branchVisualMap: Record<string, { yOffset: number; color: string; parentY: number; divSeq: number }> = {};
+    branchVisualMap["canon"] = { yOffset: 0, color: "#eab308", parentY: 0, divSeq: 1 };
 
     let upIndex = 0;
     let downIndex = 0;
 
     // Direct branches off main timeline (purple lines curving up/down)
-    directBranches.forEach((b, idx) => {
+    directBranches.forEach((b, index) => {
       let y: number;
-      if (idx % 2 === 0) {
+      if (index % 2 === 0) {
         upIndex++;
-        y = -60 * upIndex;
+        y = -80 * upIndex;
       } else {
         downIndex++;
-        y = 60 * downIndex;
+        y = 80 * downIndex;
       }
       branchVisualMap[b.id] = {
         yOffset: y,
         color: "#a855f7",
-        label: idx === 0 ? "branched timeline" : `branched timeline #${idx + 1}`,
         parentY: 0,
         divSeq: b.divergence_sequence,
       };
@@ -162,12 +161,11 @@ export default function TimelineViz() {
 
     // Child branches off a branched timeline (red lines curving further out)
     childBranches.forEach((b) => {
-      const parentVisual = branchVisualMap[b.parent_branch_id || ""] || { yOffset: -60, color: "#a855f7", parentY: 0 };
-      const childY = parentVisual.yOffset <= 0 ? parentVisual.yOffset - 50 : parentVisual.yOffset + 50;
+      const parentVisual = branchVisualMap[b.parent_branch_id || ""] || { yOffset: -80, color: "#a855f7", parentY: 0 };
+      const childY = parentVisual.yOffset <= 0 ? parentVisual.yOffset - 72 : parentVisual.yOffset + 72;
       branchVisualMap[b.id] = {
         yOffset: childY,
         color: "#ef4444",
-        label: "child branched timeline",
         parentY: parentVisual.yOffset,
         divSeq: b.divergence_sequence,
       };
@@ -187,15 +185,6 @@ export default function TimelineViz() {
       .attr("stroke-width", 3.5)
       .attr("stroke-linecap", "round");
 
-    g.append("text")
-      .attr("x", 0)
-      .attr("y", 22)
-      .attr("fill", "#eab308")
-      .attr("font-family", "monospace")
-      .attr("font-size", "10px")
-      .attr("font-weight", "bold")
-      .text("main timeline");
-
     // 3. Draw Paths for all Branches (Direct & Child)
     allBranches.forEach((b) => {
       const visual = branchVisualMap[b.id];
@@ -206,6 +195,8 @@ export default function TimelineViz() {
       if (branchOnlyEvents.length === 0) return;
 
       const divSeq = b.divergence_sequence;
+      // Start one sequence before the branch node, leaving a clear forward
+      // connector from the parent timeline to the numbered branch node.
       const startX = xScale(Math.max(minSeq, divSeq - 1));
       const endX = xScale(divSeq);
       const parentY = visual.parentY;
@@ -236,15 +227,6 @@ export default function TimelineViz() {
         .attr("stroke-dasharray", b.id === branchId ? "none" : "4 4")
         .attr("opacity", b.id === branchId ? 1 : 0.85);
 
-      // Branch Label
-      g.append("text")
-        .attr("x", Math.min(branchLineX + 8, innerWidth - 100))
-        .attr("y", targetY + (targetY <= 0 ? 18 : -10))
-        .attr("fill", visual.color)
-        .attr("font-family", "monospace")
-        .attr("font-size", "10px")
-        .attr("font-weight", "bold")
-        .text(visual.label);
     });
 
     // 4. Knowledge Horizon vertical barrier
@@ -523,20 +505,6 @@ export default function TimelineViz() {
             </button>
           </div>
 
-          <div className="hidden sm:flex items-center gap-4 text-xs font-mono text-primary-muted">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#eab308] inline-block shadow-sm"></span>
-              <span>Main Timeline</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7] inline-block shadow-sm"></span>
-              <span>Branched Timeline</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block shadow-sm"></span>
-              <span>Child Branched Timeline</span>
-            </div>
-          </div>
         </div>
 
         {/* Right: Timeline Scrubber Slider */}

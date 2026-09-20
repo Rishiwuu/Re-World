@@ -2,30 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root, .dark-mode {
   --background: #0a0612;
   --foreground: #f4f4f5;
-  
+
   --panel: rgba(18, 14, 28, 0.45);
   --panel-border: rgba(255, 255, 255, 0.08);
-  
+
   --border: rgba(255, 255, 255, 0.12);
-  
+
   --primary: #f4f4f5;
   --primary-muted: #94a3b8;
-  
+
   --canon: #fbbf24;
   --generated: #c084fc;
   --fandom: #2dd4bf;
-  
+
   --danger: #f43f5e;
+}
+
+.light-mode {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --panel: rgba(255, 255, 255, 0.75);
+  --panel-border: rgba(0, 0, 0, 0.12);
+
+  --border: rgba(0, 0, 0, 0.15);
+
+  --primary: #0f172a;
+  --primary-muted: #475569;
+
+  --canon: #d97706;
+  --generated: #9333ea;
+  --fandom: #0d9488;
+
+  --danger: #e11d48;
 }
 
 body {
   color: var(--foreground);
-  background: #090611;
+  background: var(--background);
   font-family: var(--font-inter), sans-serif;
   overflow-x: hidden;
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 /* The WebGL renderer adds its own canvas. It is visual-only and must never
@@ -40,13 +60,16 @@ body {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary-muted);
 }

@@ -6,7 +6,7 @@ import TimelineViz from "./TimelineViz";
 import CharacterPanel from "./CharacterPanel";
 import BranchLab from "./BranchLab";
 import ScenarioVisualizerModal from "./ScenarioVisualizerModal";
-import { MessageSquare, GitBranch, Users, ArrowLeft, RefreshCw, Sparkles } from "lucide-react";
+import { MessageSquare, GitBranch, Users, ArrowLeft, RefreshCw, Sparkles, Palette } from "lucide-react";
 import { api } from "@/lib/api";
 
 export default function WorldDashboard() {
@@ -18,7 +18,9 @@ export default function WorldDashboard() {
     setStoryId, 
     setBranchId, 
     setSelectedCharacterId,
-    setWorldSummary 
+    setWorldSummary,
+    setShowThemeModal,
+    activeThemePack,
   } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<"chat" | "branch" | "entities">("chat");
@@ -86,6 +88,17 @@ export default function WorldDashboard() {
 
         {/* Global Action Tools */}
         <div className="flex items-center gap-3">
+          {/* Theme Button */}
+          <button
+            onClick={() => setShowThemeModal(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-xs font-mono font-bold text-primary backdrop-blur-md transition-all shadow-sm"
+            title="Theme Controls & Texture Packs"
+          >
+            <Palette size={14} className="text-canon" />
+            <span>Theme</span>
+            <span className="w-2.5 h-2.5 rounded-full border border-white/30" style={{ background: activeThemePack.gradientPreview }} />
+          </button>
+
           <button
             onClick={() => setShowVisualizer(true)}
             className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-purple-500/40 bg-purple-500/20 text-purple-200 hover:bg-purple-500/30 font-mono text-xs font-semibold backdrop-blur-md transition-all shadow-md group cursor-pointer"
@@ -94,6 +107,7 @@ export default function WorldDashboard() {
             <Sparkles size={14} className="text-purple-300 animate-pulse group-hover:rotate-12 transition-transform" />
             <span>Visualize Scenario</span>
           </button>
+
 
           <button
             onClick={handleReloadSummary}
