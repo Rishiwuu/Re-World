@@ -197,101 +197,6 @@ def list_branches(story_id: str):
             canonical=b.canonical,
         )
         for b in _branches.values()
-
-
-def _get_narrative_agent():
-    global _narrative_agent
-    if _narrative_agent is None:
-        from agents.narrative import NarrativeAgent
-        try:
-            from config.llm import get_llm
-            llm = get_llm()
-        except Exception:
-            llm = None
-        _narrative_agent = NarrativeAgent(llm=llm)
-    return _narrative_agent
-
-
-# ---------- Schemas ----------
-
-class BranchCreateRequest(BaseModel):
-    story_id: str
-    parent_branch_id: str = "canon"
-    sequence: int = Field(ge=0)
-    change: str
-
-
-class BranchInfo(BaseModel):
-    id: str
-    story_id: str
-    name: str
-    description: str = ""
-    parent_branch_id: str | None = None
-    divergence_event_id: str | None = None
-    divergence_sequence: int = 0
-    canonical: bool = False
-
-
-class BranchCreateResponse(BaseModel):
-    branch: BranchInfo
-    affected_events: int
-    affected_characters: list[str]
-    consequence_description: str = ""
-
-
-class DiffEntry(BaseModel):
-    event_id: str
-    title: str
-    change_type: str  # added, removed, changed
-    canon_description: str = ""
-    branch_description: str = ""
-    sequence: int = 0
-
-
-class BranchDiffResponse(BaseModel):
-    branch_id: str
-    canon_branch_id: str
-    events_added: list[DiffEntry]
-    events_removed: list[DiffEntry]
-    events_changed: list[DiffEntry]
-    characters_affected: list[str]
-    relationships_changed: int
-    ripple_depth: int
-    total_changes: int
-
-
-class ConsistencyIssue(BaseModel):
-    type: str
-    message: str
-    event_ids: list[str] = Field(default_factory=list)
-    character_ids: list[str] = Field(default_factory=list)
-    severity: str = "warning"
-
-
-class ConsistencyResponse(BaseModel):
-    valid: bool
-    branch_id: str
-    issues: list[ConsistencyIssue]
-    summary: str
-
-
-# ---------- Routes ----------
-
-@router.get("/")
-def list_branches(story_id: str):
-    """List all branches for a story."""
-    branches = [
-        BranchInfo(
-            id=b.id,
-            story_id=b.story_id,
-            name=b.name,
-            description=b.description,
-            parent_branch_id=b.parent_branch_id,
-            divergence_event_id=b.divergence_event_id,
-            divergence_sequence=b.divergence_sequence,
-            canonical=b.canonical,
-        )
-        for b in _branches.values()
         if b.story_id == story_id
     ]
     return {"branches": branches}
@@ -343,9 +248,8 @@ def create_new_branch(request: BranchCreateRequest):
     for e in affected_events:
         affected_char_ids.update(e.participants)
 
-    # The branch is an independent timeline.  Mark every downstream event as a
-    # generated alternate outcome so the UI can render a real second lane and
-    # downstream queries cannot silently use canon as if nothing changed.
+    # The branch is an independent timeline. Mark every downstream event as a
+    # generated alternate outcome so the UI can render a real second lane.
     downstream_events = sorted(
         (e for e in branch_ws.events.values() if e.sequence >= request.sequence),
         key=lambda e: e.sequence,
@@ -355,23 +259,28 @@ def create_new_branch(request: BranchCreateRequest):
     for event in downstream_events:
         event.canonical = False
         event.branch_id = branch.id
-        outcome = alternate_outcomes[event.id]
-        event.title = outcome["title"]
-        event.description = outcome["description"]
-        target_chars = event.participants if event.participants else list(branch_ws.characters.keys())
-        for character_id in target_chars:
-            fact_id = f"branch_{branch.id[:8]}_{event.id}_{character_id}"
-            branch_ws.knowledge[fact_id] = KnowledgeFact(
-                id=fact_id,
-                character_id=character_id,
-                statement=f"{outcome['title']}: {outcome['description']}",
-                valid_from_sequence=event.sequence,
-                provenance=Provenance.GENERATED,
-                confidence=0.9,
-            )
-            generated_fact_ids.add(fact_id)
+        if event.id in alternate_outcomes:
+            outcome = alternate_outcomes[event.id]
+            event.title = outcome["title"]
+            event.description = outcome["description"]
+            target_chars = event.participants if event.participants else list(branch_ws.characters.keys())
+            for character_id in target_chars:
+                fact_id = f"branch_{branch.id[:8]}_{event.id}_{character_id}"
+                branch_ws.knowledge[fact_id] = KnowledgeFact(
+                    id=fact_id,
+                    character_id=character_id,
+                    statement=f"{outcome['title']}: {outcome['description']}",
+                    valid_from_sequence=event.sequence,
+                    provenance=Provenance.GENERATED,
+                    confidence=0.9,
+                )
+                generated_fact_ids.add(fact_id)
 
-    # Create the explicit divergence event at the selected point.
+    # Create the explicit divergence event at the selected point if needed
+    consequence_id = f"branch_{branch.id[:8]}_consequence_1"
+    consequence_event = Event(
+        id=consequence_id,
+        story_id=request.story_id,
         title=f"Divergence: {request.change[:80]}",
         description=f"In this alternate timeline: {request.change}",
         sequence=request.sequence,
@@ -438,18 +347,15 @@ def get_branch_diff(branch_id: str):
     if branch is None:
         raise HTTPException(404, "Branch not found")
 
-    # Get branch world state
     branch_ws = get_world_state(branch.story_id, branch_id)
     if branch_ws is None:
         raise HTTPException(404, "Branch world state not found")
 
-    # Get canon world state
     parent_id = branch.parent_branch_id or "canon"
     canon_ws = get_world_state(branch.story_id, parent_id)
     if canon_ws is None:
         raise HTTPException(404, "Canon world state not found")
 
-    # Compute diff
     canon_events = set(canon_ws.events.keys())
     branch_events = set(branch_ws.events.keys())
 
@@ -493,21 +399,17 @@ def get_branch_diff(branch_id: str):
                 sequence=be.sequence,
             ))
 
-    # Characters affected
     affected_chars = set()
     for e in events_added + events_changed:
         be = branch_ws.events.get(e.event_id)
         if be and hasattr(be, 'participants'):
             affected_chars.update(be.participants)
 
-    # Relationships changed
     canon_rels = set(canon_ws.relationships.keys())
     branch_rels = set(branch_ws.relationships.keys())
     rel_changes = len(canon_rels.symmetric_difference(branch_rels))
 
-    # Ripple depth: how many events after divergence are affected
     ripple = len(events_added) + len(events_changed)
-
     total = len(events_added) + len(events_removed) + len(events_changed)
 
     return BranchDiffResponse(
