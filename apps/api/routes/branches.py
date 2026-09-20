@@ -248,24 +248,34 @@ def create_new_branch(request: BranchCreateRequest):
     for e in affected_events:
         affected_char_ids.update(e.participants)
 
-    # The branch is an independent timeline. Mark every downstream event as a
-    # generated alternate outcome so the UI can render a real second lane.
+    # The branch is an independent timeline. Create distinct non-canonical events
+    # for the alternate outcome so the main canon line remains intact while the branch
+    # renders in a parallel upper lane.
     downstream_events = sorted(
-        (e for e in branch_ws.events.values() if e.sequence >= request.sequence),
+        (e for e in ws.events.values() if e.sequence >= request.sequence),
         key=lambda e: e.sequence,
     )
     alternate_outcomes = _alternate_outcomes(request.change, downstream_events)
     generated_fact_ids: set[str] = set()
     for event in downstream_events:
-        event.canonical = False
-        event.branch_id = branch.id
         if event.id in alternate_outcomes:
             outcome = alternate_outcomes[event.id]
-            event.title = outcome["title"]
-            event.description = outcome["description"]
+            branch_event_id = f"branch_{branch.id[:8]}_{event.id}"
+            branch_event = Event(
+                id=branch_event_id,
+                story_id=request.story_id,
+                title=outcome["title"],
+                description=outcome["description"],
+                sequence=event.sequence,
+                event_type=event.event_type,
+                participants=event.participants,
+                canonical=False,
+                branch_id=branch.id,
+            )
+            branch_ws.add_event(branch_event)
             target_chars = event.participants if event.participants else list(branch_ws.characters.keys())
             for character_id in target_chars:
-                fact_id = f"branch_{branch.id[:8]}_{event.id}_{character_id}"
+                fact_id = f"fact_{branch_event_id}_{character_id}"
                 branch_ws.knowledge[fact_id] = KnowledgeFact(
                     id=fact_id,
                     character_id=character_id,
@@ -276,20 +286,6 @@ def create_new_branch(request: BranchCreateRequest):
                 )
                 generated_fact_ids.add(fact_id)
 
-    # Create the explicit divergence event at the selected point if needed
-    consequence_id = f"branch_{branch.id[:8]}_consequence_1"
-    consequence_event = Event(
-        id=consequence_id,
-        story_id=request.story_id,
-        title=f"Divergence: {request.change[:80]}",
-        description=f"In this alternate timeline: {request.change}",
-        sequence=request.sequence,
-        event_type=EventType.PLOT,
-        participants=list(affected_char_ids)[:5],
-        canonical=False,
-        branch_id=branch.id,
-    )
-    branch_ws.add_event(consequence_event)
     branch_ws.current_point.sequence = max(
         (event.sequence for event in branch_ws.events.values()), default=request.sequence
     )
