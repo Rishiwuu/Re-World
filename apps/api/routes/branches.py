@@ -197,6 +197,101 @@ def list_branches(story_id: str):
             canonical=b.canonical,
         )
         for b in _branches.values()
+
+
+def _get_narrative_agent():
+    global _narrative_agent
+    if _narrative_agent is None:
+        from agents.narrative import NarrativeAgent
+        try:
+            from config.llm import get_llm
+            llm = get_llm()
+        except Exception:
+            llm = None
+        _narrative_agent = NarrativeAgent(llm=llm)
+    return _narrative_agent
+
+
+# ---------- Schemas ----------
+
+class BranchCreateRequest(BaseModel):
+    story_id: str
+    parent_branch_id: str = "canon"
+    sequence: int = Field(ge=0)
+    change: str
+
+
+class BranchInfo(BaseModel):
+    id: str
+    story_id: str
+    name: str
+    description: str = ""
+    parent_branch_id: str | None = None
+    divergence_event_id: str | None = None
+    divergence_sequence: int = 0
+    canonical: bool = False
+
+
+class BranchCreateResponse(BaseModel):
+    branch: BranchInfo
+    affected_events: int
+    affected_characters: list[str]
+    consequence_description: str = ""
+
+
+class DiffEntry(BaseModel):
+    event_id: str
+    title: str
+    change_type: str  # added, removed, changed
+    canon_description: str = ""
+    branch_description: str = ""
+    sequence: int = 0
+
+
+class BranchDiffResponse(BaseModel):
+    branch_id: str
+    canon_branch_id: str
+    events_added: list[DiffEntry]
+    events_removed: list[DiffEntry]
+    events_changed: list[DiffEntry]
+    characters_affected: list[str]
+    relationships_changed: int
+    ripple_depth: int
+    total_changes: int
+
+
+class ConsistencyIssue(BaseModel):
+    type: str
+    message: str
+    event_ids: list[str] = Field(default_factory=list)
+    character_ids: list[str] = Field(default_factory=list)
+    severity: str = "warning"
+
+
+class ConsistencyResponse(BaseModel):
+    valid: bool
+    branch_id: str
+    issues: list[ConsistencyIssue]
+    summary: str
+
+
+# ---------- Routes ----------
+
+@router.get("/")
+def list_branches(story_id: str):
+    """List all branches for a story."""
+    branches = [
+        BranchInfo(
+            id=b.id,
+            story_id=b.story_id,
+            name=b.name,
+            description=b.description,
+            parent_branch_id=b.parent_branch_id,
+            divergence_event_id=b.divergence_event_id,
+            divergence_sequence=b.divergence_sequence,
+            canonical=b.canonical,
+        )
+        for b in _branches.values()
         if b.story_id == story_id
     ]
     return {"branches": branches}
@@ -228,6 +323,15 @@ def create_new_branch(request: BranchCreateRequest):
     # Clone world state for the branch
     branch_ws = clone_world_state(ws, branch)
 
+    # Purge old canon knowledge facts for rewritten sequence points (>= request.sequence)
+    # so characters in this branch do not retain conflicting canon memories.
+    stale_fact_keys = [
+        k for k, fact in list(branch_ws.knowledge.items())
+        if fact.valid_from_sequence >= request.sequence
+    ]
+    for k in stale_fact_keys:
+        del branch_ws.knowledge[k]
+
     # Identify affected events (events at or after divergence)
     affected_events = [
         e for e in ws.events.values()
@@ -254,15 +358,13 @@ def create_new_branch(request: BranchCreateRequest):
         outcome = alternate_outcomes[event.id]
         event.title = outcome["title"]
         event.description = outcome["description"]
-        for character_id in event.participants:
+        target_chars = event.participants if event.participants else list(branch_ws.characters.keys())
+        for character_id in target_chars:
             fact_id = f"branch_{branch.id[:8]}_{event.id}_{character_id}"
             branch_ws.knowledge[fact_id] = KnowledgeFact(
                 id=fact_id,
                 character_id=character_id,
-                statement=(
-                    f"In this alternate timeline (Premise: {request.change}): "
-                    f"{outcome['title']} — {outcome['description']}"
-                ),
+                statement=f"{outcome['title']}: {outcome['description']}",
                 valid_from_sequence=event.sequence,
                 provenance=Provenance.GENERATED,
                 confidence=0.9,
@@ -270,10 +372,6 @@ def create_new_branch(request: BranchCreateRequest):
             generated_fact_ids.add(fact_id)
 
     # Create the explicit divergence event at the selected point.
-    consequence_id = f"branch_{branch.id[:8]}_consequence_1"
-    consequence_event = Event(
-        id=consequence_id,
-        story_id=request.story_id,
         title=f"Divergence: {request.change[:80]}",
         description=f"In this alternate timeline: {request.change}",
         sequence=request.sequence,

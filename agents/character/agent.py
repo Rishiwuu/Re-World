@@ -54,13 +54,23 @@ class CharacterAgent:
             effective_sequence,
         )
 
-        # Retrieval is useful only when it belongs to this story and does not
-        # leak information from a later point on the timeline.
-        retrieved = [
-            result for result in search_story(request.message, limit=10)
-            if result.metadata.get("story_id") == request.story_id
-            and result.metadata.get("sequence", effective_sequence) <= effective_sequence
-        ][:5]
+        timeline_events = [
+            f"Seq {e.sequence} - {e.title}: {e.description}"
+            for e in sorted(world_state.events.values(), key=lambda x: x.sequence)
+            if e.sequence <= effective_sequence
+        ]
+
+        # Retrieval from canon raw text vector search is only valid for canon branch.
+        # On alternate branches, rely on branch timeline events and branch knowledge facts.
+        if request.branch_id == "canon":
+            retrieved = [
+                result for result in search_story(request.message, limit=10)
+                if result.metadata.get("story_id") == request.story_id
+                and result.metadata.get("sequence", effective_sequence) <= effective_sequence
+            ][:5]
+        else:
+            retrieved = []
+
         relationships = [
             relationship.model_dump()
             for relationship in world_state.relationships.values()
@@ -71,9 +81,10 @@ class CharacterAgent:
         context = {
             "character": character.model_dump(),
             "knowledge": [
-                fact.model_dump()
+                self._naturalize_fact(fact.statement)
                 for fact in knowledge
             ],
+            "timeline_events": timeline_events,
             "source_evidence": [
                 result.text
                 for result in retrieved
@@ -101,14 +112,14 @@ class CharacterAgent:
                 ("human", self._build_prompt(context)),
             ])
 
-            output_text = response.content
-            if isinstance(output_text, list):
+            raw_content = getattr(response, 'content', response)
+            if isinstance(raw_content, list):
                 output_text = "".join(
                     part.get("text", "") if isinstance(part, dict) else str(part)
-                    for part in output_text
+                    for part in raw_content
                 )
-            elif not isinstance(output_text, str):
-                output_text = str(output_text)
+            else:
+                output_text = str(raw_content)
 
             return AgentResult(
                 success=True,
@@ -124,9 +135,6 @@ class CharacterAgent:
             logger.error(f"Character LLM error: {e}")
             return AgentResult(
                 success=True,
-                # Do not substitute a generic role-play line for an answer.
-                # The local evidence-only responder is more accurate than an
-                # unavailable provider and still respects the time boundary.
                 output=self._fallback_response(character, knowledge, request.message),
                 metadata={
                     "character_id": character.id,
@@ -138,35 +146,35 @@ class CharacterAgent:
             )
 
     def _build_prompt(self, context: dict) -> str:
-        return f"""Character:
-{context["character"]}
+        events_str = "\n".join(context["timeline_events"]) or "No prior events recorded."
+        knowledge_str = "\n".join(f"- {k}" for k in context["knowledge"]) or "No additional memory facts."
 
-Known facts (strictly bounded to timeline position sequence <= {context["sequence"]}):
-{context["knowledge"]}
+        return f"""Character Profile:
+Name: {context["character"].get("name")}
+Description: {context["character"].get("description")}
+Personality Traits: {context["character"].get("personality", [])}
 
-Relationships that shape this character's feelings and loyalties:
+STORY TIMELINE EVENTS EXPERIENCED (Current Position: Sequence {context["sequence"]}):
+{events_str}
+
+MY MEMORIES & OBSERVED FACTS (Up to Sequence {context["sequence"]}):
+{knowledge_str}
+
+RELATIONSHIPS & LOYALTIES:
 {context["relationships"]}
 
-Source evidence:
-{context["source_evidence"]}
-
-Timeline sequence:
-{context["sequence"]}
-
-User:
-{context["user_message"]}
-
-Recent conversation (continue it naturally; do not repeat it or label roles):
+CONVERSATION HISTORY:
 {context["conversation"]}
 
-Reply as this character speaking in first person, not as a narrator or an AI.
-Do not explain the character's personality or describe what the character would
-do. Simply be them in this moment and respond directly to the user's message.
-Stay in the scene. Let the character's voice emerge through emotional reactions,
-priorities, rhythm, and relationship-driven stakes. A short action in asterisks
-is allowed only when it feels natural. Never summarize the profile or quote raw
-fact text as if reading a report.
-Do not mention events or facts beyond sequence {context["sequence"]}.
+USER QUESTION:
+"{context["user_message"]}"
+
+CRITICAL INSTRUCTIONS:
+1. Speak as {context["character"].get("name")} in first person ("I", "my", "me").
+2. Answer based ONLY on the events and memories up to Sequence {context["sequence"]} above.
+3. Be deeply humanized, expressive, and conversational. Express your personal voice, thoughts, sensory reactions, and feelings.
+4. DO NOT mention canon events or future events that did NOT happen in your timeline sequence.
+5. Never speak as an AI, narrator, or system. Simply BE this character in this exact moment.
 """
 
     def _fallback_response(self, character, knowledge, message: str) -> str:
@@ -222,8 +230,7 @@ Do not mention events or facts beyond sequence {context["sequence"]}.
             flags=re.IGNORECASE,
         )
         cleaned = re.sub(r"\bIn this .*?:\s*", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bIn this\b\s*:? ?", "", cleaned, flags=re.IGNORECASE)
-        # Branch records sometimes repeat the same premise after metadata.
+        cleaned = re.sub(r"\bIn this\b\s*:? ?", "", cleaned, flags=re.IGNORECASE)
         clauses = [part.strip() for part in re.split(r"\s*:\s*", cleaned) if part.strip()]
         if clauses:
             cleaned = clauses[-1]
