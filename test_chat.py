@@ -1,4 +1,5 @@
-import urllib.request, json
+import urllib.request
+import json
 data = json.dumps({'character_id': 'detective_hale', 'story_id': 'demo', 'branch_id': 'canon', 'sequence': 5, 'message': 'What do you know about the murder?'}).encode()
 req = urllib.request.Request('http://127.0.0.1:8000/api/chat/', data=data, headers={'Content-Type': 'application/json'})
 try:

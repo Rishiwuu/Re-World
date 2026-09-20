@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from agents.shared import AgentResult, CharacterRequest
+from agents.shared import CharacterRequest
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger("reworld")
@@ -34,6 +34,7 @@ class ChatRequest(BaseModel):
     branch_id: str = "canon"
     sequence: int = Field(ge=0, default=0)
     message: str
+    conversation: list[dict[str, str]] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
@@ -56,6 +57,7 @@ def chat(request: ChatRequest):
         branch_id=request.branch_id,
         sequence=request.sequence,
         message=request.message,
+        conversation=request.conversation,
     )
 
     result = agent.respond(char_request)

@@ -22,6 +22,7 @@ class CharacterRequest(BaseModel):
     branch_id: str
     sequence: int = Field(ge=0)
     message: str
+    conversation: list[dict[str, str]] = Field(default_factory=list)
 
 
 class NarrativeRequest(BaseModel):

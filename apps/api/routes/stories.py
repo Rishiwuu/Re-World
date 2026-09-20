@@ -3,21 +3,16 @@ from __future__ import annotations
 import logging
 import os
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from core.world import (
-    CharacterState,
-    Event,
     KnowledgeFact,
     Provenance,
-    RelationshipState,
     StoryPoint,
     WorldState,
 )
-from ingestion.pipeline import ingest_story as run_ingest_pipeline
 from ingestion.normalization import normalize_text
 from ingestion.extraction import (
     extract_characters,
@@ -111,14 +106,32 @@ def create_story(request: StoryCreateRequest):
     story_id = f"{story_id}_{uuid.uuid4().hex[:6]}"
 
     text = normalize_text(request.raw_text)
+    if len(text) < 20:
+        raise HTTPException(
+            status_code=422,
+            detail="The uploaded file does not contain enough readable text. Use a TXT, text-based PDF, or DOCX with story content.",
+        )
 
     # Extract
     characters = extract_characters(text)
-    events = extract_events(text, story_id)
-    relationships = extract_relationships(
-        text, [c.id for c in characters]
-    )
-    timeline = extract_timeline(text)
+    char_ids = [c.id for c in characters]
+    events = extract_events(text, story_id, char_ids)
+    if not events:
+        # A non-empty source must always have an inspectable starting point.
+        # This protects the UI from rendering an empty timeline when a source
+        # has unusual punctuation or formatting.
+        from core.world import Event, EventType
+        events = [Event(
+            id=f"{story_id}_event_1",
+            story_id=story_id,
+            title="Opening narrative beat",
+            description=text[:600],
+            sequence=1,
+            event_type=EventType.PLOT,
+            participants=char_ids,
+        )]
+    relationships = extract_relationships(text, char_ids)
+    timeline = extract_timeline(text, len(events))
 
     # Build world state
     char_dict = {c.id: c for c in characters}
@@ -128,7 +141,8 @@ def create_story(request: StoryCreateRequest):
     # Generate knowledge facts from events
     knowledge: dict[str, KnowledgeFact] = {}
     for event in events:
-        for participant in event.participants:
+        target_chars = event.participants if event.participants else char_ids
+        for participant in target_chars:
             fact_id = f"kf_{event.id}_{participant}"
             knowledge[fact_id] = KnowledgeFact(
                 id=fact_id,
@@ -138,7 +152,8 @@ def create_story(request: StoryCreateRequest):
                 provenance=Provenance.CANON,
             )
 
-    current_point = timeline[-1] if timeline else StoryPoint(sequence=0, label="Beginning")
+    max_seq = max([e.sequence for e in events], default=1)
+    current_point = timeline[-1] if timeline else StoryPoint(sequence=max_seq, label="Conclusion")
 
     ws = WorldState(
         story_id=story_id,

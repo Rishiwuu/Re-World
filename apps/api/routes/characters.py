@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from tools.character_memory import get_character_knowledge as resolve_character_knowledge
 from tools.world_state import get_world_state
 
 router = APIRouter(prefix="/characters", tags=["characters"])
@@ -43,7 +44,7 @@ def get_character(story_id: str, character_id: str, branch_id: str = "canon"):
     """Get a specific character."""
     ws = get_world_state(story_id, branch_id)
     if ws is None:
-        raise HTTPException(404, f"World state not found")
+        raise HTTPException(404, "World state not found")
 
     character = ws.get_character(character_id)
     if character is None:
@@ -64,10 +65,11 @@ def get_character_knowledge(
     if ws is None:
         raise HTTPException(404, "World state not found")
 
-    facts = ws.get_known_facts(character_id, sequence)
+    effective_sequence = sequence if sequence > 0 else ws.current_point.sequence
+    facts = resolve_character_knowledge(ws, character_id, effective_sequence)
     return {
         "character_id": character_id,
-        "sequence": sequence,
+        "sequence": effective_sequence,
         "facts": [f.model_dump() for f in facts],
         "total": len(facts),
     }

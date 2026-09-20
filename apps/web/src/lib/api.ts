@@ -1,5 +1,14 @@
 export const API_BASE = 'http://localhost:8000/api';
 
+async function errorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    return body.detail || body.message || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export interface Story {
   id: string;
   title: string;
@@ -111,7 +120,7 @@ export const api = {
       method: 'POST',
       body: formData,
     });
-    if (!res.ok) throw new Error('Upload failed');
+    if (!res.ok) throw new Error(await errorMessage(res, 'Upload failed'));
     return res.json();
   },
 
@@ -148,7 +157,7 @@ export const api = {
     return res.json();
   },
 
-  async chatWithCharacter(storyId: string, characterId: string, sequence: number, message: string, branchId: string = 'canon'): Promise<ChatResponse> {
+  async chatWithCharacter(storyId: string, characterId: string, sequence: number, message: string, branchId: string = 'canon', conversation: { role: string; content: string }[] = []): Promise<ChatResponse> {
     const res = await fetch(`${API_BASE}/chat/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -158,10 +167,13 @@ export const api = {
         sequence,
         message,
         branch_id: branchId,
+        conversation,
       }),
     });
-    if (!res.ok) throw new Error('Chat failed');
-    return res.json();
+    if (!res.ok) throw new Error(await errorMessage(res, 'Chat failed'));
+    const data = await res.json();
+    if (!data.success) throw new Error(data.errors?.join(' ') || 'Chat failed');
+    return data;
   },
 
   async createBranch(storyId: string, sequence: number, change: string, parentBranchId: string = 'canon') {
@@ -175,8 +187,15 @@ export const api = {
         change,
       }),
     });
-    if (!res.ok) throw new Error('Failed to create branch');
+    if (!res.ok) throw new Error(await errorMessage(res, 'Failed to create branch'));
     return res.json();
+  },
+
+  async listBranches(storyId: string): Promise<BranchInfo[]> {
+    const res = await fetch(`${API_BASE}/branches/?story_id=${encodeURIComponent(storyId)}`);
+    if (!res.ok) throw new Error(await errorMessage(res, 'Failed to fetch timelines'));
+    const data = await res.json();
+    return data.branches || [];
   },
 
   async getBranchDiff(branchId: string): Promise<BranchDiffResponse> {

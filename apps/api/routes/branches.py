@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import json
 import logging
-import uuid
+import re
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from agents.shared import AgentResult, NarrativeRequest
-from core.simulation import Branch, Consequence
-from core.world import Event, EventType, Provenance, WorldState
+from agents.shared import NarrativeRequest
+from core.world import Event, EventType, KnowledgeFact, Provenance
 from tools.branch_manager import create_branch, clone_world_state, get_branch, _branches
 from tools.world_state import get_world_state, save_world_state
 
@@ -17,6 +17,73 @@ logger = logging.getLogger("reworld")
 
 # Lazy agent
 _narrative_agent = None
+
+
+def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str, str]]:
+    """Generate a distinct downstream story based strictly on the user's What-If hypothesis."""
+    if not events:
+        return {}
+    
+    fallback = {
+        event.id: {
+            "title": f"Divergence: {event.title}",
+            "description": (
+                f"As a consequence of the timeline premise ('{change}'), "
+                f"{event.title} unfolds differently: {event.description} "
+                f"The characters must now respond to the new timeline."
+            ),
+        }
+        for event in events
+    }
+    
+    try:
+        from config.llm import get_llm
+        llm = get_llm()
+        source = "\n".join(
+            f"ID: {event.id} | Sequence: {event.sequence} | Original Title: {event.title} | Original Beat: {event.description}"
+            for event in events[:12]
+        )
+        
+        prompt = (
+            f"You are a master narrative architect specializing in timeline divergence and alternate reality fiction.\n\n"
+            f"WHAT-IF HYPOTHESIS / TIMELINE DIVERGENCE PREMISE:\n"
+            f"\"{change}\"\n\n"
+            f"TASK:\n"
+            f"Rewrite each downstream story event below so that it dynamically and logically reflects the cause-and-effect "
+            f"consequences of this hypothesis premise. Show how characters react differently, how plot points shift, "
+            f"and how the story outcome is completely reshaped by this change.\n\n"
+            f"Downstream Events to Rewrite:\n{source}\n\n"
+            f"Output Requirement: Return ONLY a valid JSON array matching this format exactly:\n"
+            f"[\n"
+            f"  {{\n"
+            f"    \"id\": \"event_id_here\",\n"
+            f"    \"title\": \"Vivid Revised Event Title\",\n"
+            f"    \"description\": \"Detailed 2-3 sentence description of what happens in this alternate timeline.\"\n"
+            f"  }}\n"
+            f"]"
+        )
+        
+        response = llm.invoke(prompt)
+        content = response.content if isinstance(response.content, str) else str(response.content)
+        
+        # Clean markdown wrappers if present
+        content = re.sub(r"^```json\s*", "", content, flags=re.MULTILINE)
+        content = re.sub(r"^```\s*", "", content, flags=re.MULTILINE)
+        
+        match = re.search(r"\[\s*\{.*\}\s*\]", content, re.DOTALL)
+        if match:
+            generated = json.loads(match.group(0))
+            for item in generated:
+                event_id = item.get("id")
+                if event_id in fallback and item.get("description"):
+                    fallback[event_id] = {
+                        "title": str(item.get("title") or fallback[event_id]["title"])[:120],
+                        "description": str(item["description"])[:1000],
+                    }
+    except Exception as exc:
+        logger.warning("Alternate story generation fell back to local narrative: %s", exc)
+        
+    return fallback
 
 
 def _get_narrative_agent():
@@ -154,7 +221,37 @@ def create_new_branch(request: BranchCreateRequest):
     for e in affected_events:
         affected_char_ids.update(e.participants)
 
-    # Create a consequence event on the branch
+    # The branch is an independent timeline.  Mark every downstream event as a
+    # generated alternate outcome so the UI can render a real second lane and
+    # downstream queries cannot silently use canon as if nothing changed.
+    downstream_events = sorted(
+        (e for e in branch_ws.events.values() if e.sequence > request.sequence),
+        key=lambda e: e.sequence,
+    )
+    alternate_outcomes = _alternate_outcomes(request.change, downstream_events)
+    generated_fact_ids: set[str] = set()
+    for event in downstream_events:
+        event.canonical = False
+        event.branch_id = branch.id
+        outcome = alternate_outcomes[event.id]
+        event.title = outcome["title"]
+        event.description = outcome["description"]
+        for character_id in event.participants:
+            fact_id = f"branch_{branch.id[:8]}_{event.id}_{character_id}"
+            branch_ws.knowledge[fact_id] = KnowledgeFact(
+                id=fact_id,
+                character_id=character_id,
+                statement=(
+                    f"In this alternate timeline (Premise: {request.change}): "
+                    f"{outcome['title']} — {outcome['description']}"
+                ),
+                valid_from_sequence=event.sequence,
+                provenance=Provenance.GENERATED,
+                confidence=0.9,
+            )
+            generated_fact_ids.add(fact_id)
+
+    # Create the explicit divergence event at the selected point.
     consequence_id = f"branch_{branch.id[:8]}_consequence_1"
     consequence_event = Event(
         id=consequence_id,
@@ -168,6 +265,10 @@ def create_new_branch(request: BranchCreateRequest):
         branch_id=branch.id,
     )
     branch_ws.add_event(consequence_event)
+    branch_ws.current_point.sequence = max(
+        (event.sequence for event in branch_ws.events.values()), default=request.sequence
+    )
+    branch_ws.current_point.label = "Alternate timeline"
 
     # Save the branch world state
     save_world_state(branch_ws)

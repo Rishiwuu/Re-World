@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import urllib.request
-import pytest
 
 BASE_URL = "http://127.0.0.1:8000/api"
 FRONTEND_URL = "http://localhost:3000"

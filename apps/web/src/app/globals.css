@@ -3,29 +3,36 @@
 @tailwind utilities;
 
 :root {
-  --background: #09090b; /* Zinc 950 */
-  --foreground: #fafafa; /* Zinc 50 */
+  --background: #0a0612;
+  --foreground: #f4f4f5;
   
-  --panel: #18181b; /* Zinc 900 */
-  --panel-border: #27272a; /* Zinc 800 */
+  --panel: rgba(18, 14, 28, 0.45);
+  --panel-border: rgba(255, 255, 255, 0.08);
   
-  --border: #3f3f46; /* Zinc 700 */
+  --border: rgba(255, 255, 255, 0.12);
   
-  --primary: #f4f4f5; /* Zinc 100 */
-  --primary-muted: #a1a1aa; /* Zinc 400 */
+  --primary: #f4f4f5;
+  --primary-muted: #94a3b8;
   
-  --canon: #eab308; /* Yellow 500 */
-  --generated: #8b5cf6; /* Violet 500 */
-  --fandom: #14b8a6; /* Teal 500 */
+  --canon: #fbbf24;
+  --generated: #c084fc;
+  --fandom: #2dd4bf;
   
-  --danger: #ef4444; /* Red 500 */
+  --danger: #f43f5e;
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background: #090611;
   font-family: var(--font-inter), sans-serif;
   overflow-x: hidden;
+}
+
+/* The WebGL renderer adds its own canvas. It is visual-only and must never
+   sit above or capture input intended for the application controls. */
+.shader-gradient-backdrop,
+.shader-gradient-backdrop canvas {
+  pointer-events: none !important;
 }
 
 /* Custom Scrollbar */

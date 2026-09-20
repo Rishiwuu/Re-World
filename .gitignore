@@ -46,6 +46,8 @@ Thumbs.db
 # Node / Frontend
 node_modules/
 .next/
+.next-stale-rebuild/
 out/
 .turbo/
+
 
