@@ -2,17 +2,19 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import * as d3 from "d3";
-import { api, TimelineEvent, Character } from "@/lib/api";
+import { api, TimelineEvent, Character, BranchInfo } from "@/lib/api";
 import { useAppContext } from "./AppProvider";
 import { Clock, Layers, Sliders, Users } from "lucide-react";
 
 export default function TimelineViz() {
-  const { storyId, branchId, currentSequence, setCurrentSequence, setSelectedCharacterId } = useAppContext();
+  const { storyId, branchId, setBranchId, currentSequence, setCurrentSequence, setSelectedCharacterId } = useAppContext();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [canonEvents, setCanonEvents] = useState<TimelineEvent[]>([]);
+  const [allBranches, setAllBranches] = useState<BranchInfo[]>([]);
+  const [branchMap, setBranchMap] = useState<Record<string, TimelineEvent[]>>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
   const [viewMode, setViewMode] = useState<"timeline" | "network">("timeline");
@@ -24,14 +26,30 @@ export default function TimelineViz() {
       Promise.all([
         api.getTimeline(storyId, branchId),
         api.getCharacters(storyId, branchId),
-        branchId !== "canon" ? api.getTimeline(storyId, "canon") : Promise.resolve(null),
+        api.getTimeline(storyId, "canon"),
+        api.listBranches(storyId),
       ])
-        .then(([timelineData, charData, canonData]) => {
+        .then(async ([timelineData, charData, canonData, branchesList]) => {
           setEvents(timelineData.events || []);
           setCharacters(charData || []);
-          setCanonEvents(canonData?.events || timelineData.events || []);
+          const canonEvs = canonData?.events || timelineData.events || [];
+          setCanonEvents(canonEvs);
+          setAllBranches(branchesList || []);
+
+          // Fetch timeline events for all branches
+          const map: Record<string, TimelineEvent[]> = {};
+          map["canon"] = canonEvs;
+          for (const b of branchesList || []) {
+            try {
+              const res = await api.getTimeline(storyId, b.id);
+              map[b.id] = res.events || [];
+            } catch (e) {
+              console.error(e);
+            }
+          }
+          setBranchMap(map);
+
           if (timelineData.events?.length > 0) {
-            // Find current event or latest
             const match = timelineData.events.find(e => e.sequence === currentSequence) || timelineData.events[timelineData.events.length - 1];
             setSelectedEvent(match);
           }
@@ -50,16 +68,21 @@ export default function TimelineViz() {
   }, [currentSequence, events]);
 
   const maxSeq = useMemo(() => {
-    const seqs = [...events.map(e => e.sequence), ...canonEvents.map(e => e.sequence)];
-    return Math.max(...seqs, 1);
-  }, [events, canonEvents]);
+    let maxS = 1;
+    Object.values(branchMap).forEach(evs => {
+      evs.forEach(e => {
+        if (e.sequence > maxS) maxS = e.sequence;
+      });
+    });
+    return maxS;
+  }, [branchMap]);
 
   // D3 Visualization Renderer
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
 
     const width = containerRef.current.clientWidth || 800;
-    const height = containerRef.current.clientHeight || 450;
+    const height = containerRef.current.clientHeight || 480;
     
     // Clear previous
     d3.select(svgRef.current).selectAll("*").remove();
@@ -69,59 +92,23 @@ export default function TimelineViz() {
       .attr("height", height)
       .attr("viewBox", `0 0 ${width} ${height}`);
 
-    if (events.length === 0) return;
+    if (events.length === 0 && canonEvents.length === 0) return;
 
     if (viewMode === "timeline") {
       renderTimelineView(svg, width, height);
     } else {
       renderNetworkView(svg, width, height);
     }
-  }, [events, canonEvents, currentSequence, viewMode, characters]);
+  }, [events, canonEvents, allBranches, branchMap, currentSequence, branchId, viewMode, characters]);
 
   const renderTimelineView = (svg: d3.Selection<SVGSVGElement, unknown, null, undefined>, width: number, height: number) => {
-    const margin = { top: 60, right: 60, bottom: 60, left: 60 };
+    const margin = { top: 70, right: 70, bottom: 70, left: 70 };
     const innerWidth = Math.max(width - margin.left - margin.right, 300);
     const centerY = height / 2;
 
-    const sortedEvents = [...events].sort((a, b) => a.sequence - b.sequence);
-    const branchEvents = sortedEvents.filter(e => !e.canonical);
-
-    interface DisplayNode extends TimelineEvent {
-      isFutureCanon?: boolean;
-    }
-
-    const displayNodes: DisplayNode[] = [];
-    const divergenceSeq = branchEvents.length > 0 ? branchEvents[0].sequence : Infinity;
-
-    if (branchId !== "canon" && canonEvents.length > 0) {
-      const sortedCanon = [...canonEvents].sort((a, b) => a.sequence - b.sequence);
-      sortedCanon.forEach(ce => {
-        displayNodes.push({
-          ...ce,
-          canonical: true,
-          isFutureCanon: ce.sequence >= divergenceSeq,
-        });
-      });
-      branchEvents.forEach(be => {
-        displayNodes.push({
-          ...be,
-          canonical: false,
-          isFutureCanon: false,
-        });
-      });
-    } else {
-      sortedEvents.forEach(e => {
-        displayNodes.push({
-          ...e,
-          isFutureCanon: false,
-        });
-      });
-    }
-
     // Linear scale for sequences
     const minSeq = 1;
-    const calculatedMax = Math.max(...displayNodes.map(d => d.sequence), maxSeq, 1);
-    const effectiveMaxSeq = Math.max(calculatedMax, 2);
+    const effectiveMaxSeq = Math.max(maxSeq, 2);
     const xScale = d3.scaleLinear()
       .domain([minSeq, effectiveMaxSeq])
       .range([0, innerWidth]);
@@ -144,43 +131,123 @@ export default function TimelineViz() {
     feMerge.append("feMergeNode").attr("in", "coloredBlur");
     feMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
-    // Main canon baseline
+    // 1. Calculate Multi-Branch Layout Offsets & Colors
+    const directBranches = allBranches.filter(b => !b.parent_branch_id || b.parent_branch_id === "canon");
+    const childBranches = allBranches.filter(b => b.parent_branch_id && b.parent_branch_id !== "canon");
+
+    const branchVisualMap: Record<string, { yOffset: number; color: string; label: string; parentY: number; divSeq: number }> = {};
+    branchVisualMap["canon"] = { yOffset: 0, color: "#eab308", label: "main timeline", parentY: 0, divSeq: 1 };
+
+    let upIndex = 0;
+    let downIndex = 0;
+
+    // Direct branches off main timeline (purple lines curving up/down)
+    directBranches.forEach((b, idx) => {
+      let y: number;
+      if (idx % 2 === 0) {
+        upIndex++;
+        y = -60 * upIndex;
+      } else {
+        downIndex++;
+        y = 60 * downIndex;
+      }
+      branchVisualMap[b.id] = {
+        yOffset: y,
+        color: "#a855f7",
+        label: idx === 0 ? "branched timeline" : `branched timeline #${idx + 1}`,
+        parentY: 0,
+        divSeq: b.divergence_sequence,
+      };
+    });
+
+    // Child branches off a branched timeline (red lines curving further out)
+    childBranches.forEach((b) => {
+      const parentVisual = branchVisualMap[b.parent_branch_id || ""] || { yOffset: -60, color: "#a855f7", parentY: 0 };
+      const childY = parentVisual.yOffset <= 0 ? parentVisual.yOffset - 50 : parentVisual.yOffset + 50;
+      branchVisualMap[b.id] = {
+        yOffset: childY,
+        color: "#ef4444",
+        label: "child branched timeline",
+        parentY: parentVisual.yOffset,
+        divSeq: b.divergence_sequence,
+      };
+    });
+
+    // Determine active divergence sequence if currently on a branch
+    const activeBranchInfo = allBranches.find(b => b.id === branchId);
+    const activeDivergenceSeq = activeBranchInfo ? activeBranchInfo.divergence_sequence : Infinity;
+
+    // 2. Draw Main Canon Baseline
     g.append("line")
       .attr("x1", 0)
       .attr("y1", 0)
       .attr("x2", innerWidth)
       .attr("y2", 0)
-      .attr("stroke", "#3f3f46")
-      .attr("stroke-width", 3)
+      .attr("stroke", "#eab308")
+      .attr("stroke-width", 3.5)
       .attr("stroke-linecap", "round");
 
-    // A branch gets its own lane above canon.
-    if (branchEvents.length > 0) {
-      const firstBranchSeq = branchEvents[0].sequence;
-      const startX = xScale(Math.max(minSeq, firstBranchSeq - 1));
-      const branchLine = d3.line<TimelineEvent>()
-        .x(d => xScale(d.sequence))
-        .y(() => -48)
-        .curve(d3.curveMonotoneX);
-      const branchPath = branchLine(branchEvents) || "";
-      g.append("path")
-        .attr("d", `M ${startX} 0 C ${startX + 24} -32, ${startX + 36} -48, ${xScale(firstBranchSeq)} -48 ${branchPath.replace(/^M[^L]*?(-?\d+(?:\.\d+)?)\s+-48/, "")}`)
-        .attr("fill", "none")
-        .attr("stroke", "#8b5cf6")
-        .attr("stroke-width", 2.5)
-        .attr("stroke-dasharray", "4 4");
+    g.append("text")
+      .attr("x", 0)
+      .attr("y", 22)
+      .attr("fill", "#eab308")
+      .attr("font-family", "monospace")
+      .attr("font-size", "10px")
+      .attr("font-weight", "bold")
+      .text("main timeline");
 
+    // 3. Draw Paths for all Branches (Direct & Child)
+    allBranches.forEach((b) => {
+      const visual = branchVisualMap[b.id];
+      if (!visual) return;
+
+      const bEvents = branchMap[b.id] || [];
+      const branchOnlyEvents = bEvents.filter(e => !e.canonical || b.id === branchId);
+      if (branchOnlyEvents.length === 0) return;
+
+      const divSeq = b.divergence_sequence;
+      const startX = xScale(Math.max(minSeq, divSeq - 1));
+      const endX = xScale(divSeq);
+      const parentY = visual.parentY;
+      const targetY = visual.yOffset;
+
+      // Curve path from parent timeline to branch lane
+      const curveD = `M ${startX} ${parentY} C ${startX + 24} ${parentY + (targetY - parentY) * 0.6}, ${endX - 12} ${targetY}, ${endX} ${targetY}`;
+
+      g.append("path")
+        .attr("d", curveD)
+        .attr("fill", "none")
+        .attr("stroke", visual.color)
+        .attr("stroke-width", b.id === branchId ? 3 : 2)
+        .attr("stroke-dasharray", b.id === branchId ? "none" : "4 4")
+        .attr("opacity", b.id === branchId ? 1 : 0.85);
+
+      // Horizontal path along branch lane
+      const lastSeq = Math.max(...branchOnlyEvents.map(e => e.sequence));
+      const branchLineX = xScale(lastSeq);
+
+      g.append("line")
+        .attr("x1", endX)
+        .attr("y1", targetY)
+        .attr("x2", branchLineX)
+        .attr("y2", targetY)
+        .attr("stroke", visual.color)
+        .attr("stroke-width", b.id === branchId ? 3 : 2)
+        .attr("stroke-dasharray", b.id === branchId ? "none" : "4 4")
+        .attr("opacity", b.id === branchId ? 1 : 0.85);
+
+      // Branch Label
       g.append("text")
-        .attr("x", Math.min(xScale(firstBranchSeq) + 8, innerWidth - 90))
-        .attr("y", -62)
-        .attr("fill", "#a78bfa")
+        .attr("x", Math.min(branchLineX + 8, innerWidth - 100))
+        .attr("y", targetY + (targetY <= 0 ? 18 : -10))
+        .attr("fill", visual.color)
         .attr("font-family", "monospace")
         .attr("font-size", "10px")
         .attr("font-weight", "bold")
-        .text("ALTERNATE TIMELINE");
-    }
+        .text(visual.label);
+    });
 
-    // Knowledge Horizon vertical barrier
+    // 4. Knowledge Horizon vertical barrier
     const horizonSeqClamped = Math.max(minSeq, Math.min(currentSequence, effectiveMaxSeq));
     const horizonX = xScale(horizonSeqClamped);
     
@@ -216,43 +283,85 @@ export default function TimelineViz() {
       .attr("font-weight", "bold")
       .text(`HORIZON: SEQ ${currentSequence}`);
 
-    // Draw Event Nodes
+    // 5. Draw Event Nodes across all timelines
+    interface NodeRenderItem {
+      event: TimelineEvent;
+      targetBranchId: string;
+      yOffset: number;
+      color: string;
+      isFutureCanon: boolean;
+      isActiveBranch: boolean;
+    }
+
+    const nodeRenderItems: NodeRenderItem[] = [];
+
+    // Main canon events (y = 0)
+    const sortedCanon = [...canonEvents].sort((a, b) => a.sequence - b.sequence);
+    sortedCanon.forEach(ce => {
+      const isFutureCanon = branchId !== "canon" && ce.sequence >= activeDivergenceSeq;
+      nodeRenderItems.push({
+        event: ce,
+        targetBranchId: "canon",
+        yOffset: 0,
+        color: "#eab308",
+        isFutureCanon,
+        isActiveBranch: branchId === "canon",
+      });
+    });
+
+    // Branch events for each branch
+    allBranches.forEach((b) => {
+      const visual = branchVisualMap[b.id];
+      if (!visual) return;
+      const bEvs = branchMap[b.id] || [];
+      const branchOnly = bEvs.filter(e => !e.canonical);
+      branchOnly.forEach(be => {
+        nodeRenderItems.push({
+          event: be,
+          targetBranchId: b.id,
+          yOffset: visual.yOffset,
+          color: visual.color,
+          isFutureCanon: false,
+          isActiveBranch: b.id === branchId,
+        });
+      });
+    });
+
     const nodeGroups = g.selectAll(".event-node")
-      .data(displayNodes)
+      .data(nodeRenderItems)
       .enter()
       .append("g")
       .attr("class", "event-node cursor-pointer")
-      .attr("transform", d => {
-        const yOffset = !d.canonical ? -48 : 0;
-        return `translate(${xScale(d.sequence)}, ${yOffset})`;
-      })
+      .attr("transform", d => `translate(${xScale(d.event.sequence)}, ${d.yOffset})`)
       .on("click", (e, d) => {
-        setCurrentSequence(d.sequence);
-        setSelectedEvent(d);
+        if (d.targetBranchId !== branchId) {
+          setBranchId(d.targetBranchId);
+        }
+        setCurrentSequence(d.event.sequence);
+        setSelectedEvent(d.event);
       });
 
-    // Outer glow for active node
-    nodeGroups.filter(d => d.sequence === currentSequence && !d.isFutureCanon)
+    // Outer glow for active selected sequence
+    nodeGroups.filter(d => d.event.sequence === currentSequence && d.isActiveBranch && !d.isFutureCanon)
       .append("circle")
       .attr("r", 18)
-      .attr("fill", d => d.canonical ? "rgba(234, 179, 8, 0.2)" : "rgba(139, 92, 246, 0.2)")
+      .attr("fill", d => `${d.color}33`)
       .attr("filter", "url(#glow)");
 
-    // Base circle
+    // Base Node Circles
     nodeGroups.append("circle")
-      .attr("r", d => d.sequence === currentSequence ? 11 : 8)
+      .attr("r", d => d.event.sequence === currentSequence && d.isActiveBranch ? 11 : 8)
       .attr("fill", d => {
-        if (!d.canonical) return "#8b5cf6";
         if (d.isFutureCanon) return "rgba(234, 179, 8, 0.25)";
-        return d.sequence <= currentSequence ? "#eab308" : "#27272a";
+        return d.event.sequence <= currentSequence || d.isActiveBranch ? d.color : "#27272a";
       })
       .attr("stroke", d => {
-        if (d.sequence === currentSequence && !d.isFutureCanon) return "#ffffff";
+        if (d.event.sequence === currentSequence && d.isActiveBranch && !d.isFutureCanon) return "#ffffff";
         if (d.isFutureCanon) return "rgba(234, 179, 8, 0.45)";
-        return d.canonical ? "#eab308" : "#8b5cf6";
+        return d.color;
       })
-      .attr("stroke-width", d => d.sequence === currentSequence ? 3 : 2)
-      .attr("opacity", d => d.isFutureCanon ? 0.35 : (d.sequence > currentSequence ? 0.4 : 1))
+      .attr("stroke-width", d => d.event.sequence === currentSequence && d.isActiveBranch ? 3 : 2)
+      .attr("opacity", d => d.isFutureCanon ? 0.35 : (d.event.sequence > currentSequence && !d.isActiveBranch ? 0.5 : 1))
       .transition()
       .duration(300);
 
@@ -260,33 +369,31 @@ export default function TimelineViz() {
     nodeGroups.append("text")
       .attr("y", 3)
       .attr("text-anchor", "middle")
-      .attr("fill", d => d.isFutureCanon ? "rgba(254, 240, 138, 0.5)" : (d.sequence <= currentSequence ? "#09090b" : "#a1a1aa"))
+      .attr("fill", d => d.isFutureCanon ? "rgba(254, 240, 138, 0.5)" : (d.event.sequence <= currentSequence || d.isActiveBranch ? "#09090b" : "#a1a1aa"))
       .attr("font-family", "monospace")
       .attr("font-size", "9px")
       .attr("font-weight", "bold")
-      .text(d => d.sequence);
+      .text(d => d.event.sequence);
 
     // Labels with staggered heights
     nodeGroups.append("text")
-      .attr("y", (d, i) => (!d.canonical ? -68 : (i % 2 === 0 ? 32 : -26)))
+      .attr("y", (d, i) => (d.yOffset < 0 ? -22 : (d.yOffset > 0 ? 32 : (i % 2 === 0 ? 32 : -26))))
       .attr("text-anchor", "middle")
       .attr("fill", d => {
         if (d.isFutureCanon) return "rgba(254, 240, 138, 0.45)";
-        return d.sequence === currentSequence ? "#ffffff" : (d.sequence <= currentSequence ? "#f4f4f5" : "#71717a");
+        return d.event.sequence === currentSequence && d.isActiveBranch ? "#ffffff" : "#f4f4f5";
       })
       .attr("font-family", "serif")
-      .attr("font-size", d => d.sequence === currentSequence ? "12px" : "11px")
-      .attr("font-weight", d => d.sequence === currentSequence ? "bold" : "normal")
+      .attr("font-size", d => d.event.sequence === currentSequence && d.isActiveBranch ? "12px" : "11px")
+      .attr("font-weight", d => d.event.sequence === currentSequence && d.isActiveBranch ? "bold" : "normal")
       .attr("opacity", d => d.isFutureCanon ? 0.45 : 1)
       .text(d => {
-        const text = d.title || `Event ${d.sequence}`;
-        return text.length > 22 ? text.substring(0, 22) + "…" : text;
+        const text = d.event.title || `Event ${d.event.sequence}`;
+        return text.length > 20 ? text.substring(0, 20) + "…" : text;
       });
   };
 
-
   const renderNetworkView = (svg: d3.Selection<SVGSVGElement, unknown, null, undefined>, width: number, height: number) => {
-    // Build graph nodes and links from characters and events
     interface GraphNode extends d3.SimulationNodeDatum {
       id: string;
       label: string;
@@ -418,12 +525,16 @@ export default function TimelineViz() {
 
           <div className="hidden sm:flex items-center gap-4 text-xs font-mono text-primary-muted">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-canon inline-block shadow-sm"></span>
-              <span>Canon</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#eab308] inline-block shadow-sm"></span>
+              <span>Main Timeline</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-generated inline-block shadow-sm"></span>
-              <span>Divergent</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7] inline-block shadow-sm"></span>
+              <span>Branched Timeline</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block shadow-sm"></span>
+              <span>Child Branched Timeline</span>
             </div>
           </div>
         </div>
@@ -447,7 +558,7 @@ export default function TimelineViz() {
       </div>
 
       {/* SVG Canvas Area */}
-      <div ref={containerRef} className="flex-1 w-full h-full relative min-h-[280px]">
+      <div ref={containerRef} className="flex-1 w-full h-full relative min-h-[300px]">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md z-10 font-mono text-xs text-primary-muted">
             Mapping narrative coordinates...

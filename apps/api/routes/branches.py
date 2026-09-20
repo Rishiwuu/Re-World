@@ -51,8 +51,11 @@ def _generate_heuristic_story_beat(change: str, event: Event) -> dict[str, str]:
                 ),
             }
 
+    # Clean existing title prefixes for child branch narrative generation
+    clean_title = re.sub(r"^(Alternate Outcome:|Divergence:|Child Branch:)\s*", "", event.title, flags=re.IGNORECASE).strip()
+
     # Contextual narrative adaptation
-    new_title = event.title if event.title.startswith("Alternate") else f"Alternate Outcome: {event.title}"
+    new_title = f"Alternate Outcome: {clean_title}"
     adapted_desc = event.description.replace("His plan had worked!", "His original plan had to adapt immediately.")
     new_desc = f"Under the new premise where {change_clean}, {adapted_desc} The situation developed in an unforeseen direction, forcing the characters to react to the new reality."
 
@@ -60,6 +63,7 @@ def _generate_heuristic_story_beat(change: str, event: Event) -> dict[str, str]:
         "title": new_title[:120],
         "description": new_desc[:1000],
     }
+
 
 
 def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str, str]]:
