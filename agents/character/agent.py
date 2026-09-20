@@ -54,22 +54,46 @@ class CharacterAgent:
             effective_sequence,
         )
 
-        timeline_events = [
-            f"Seq {e.sequence} - {e.title}: {e.description}"
-            for e in sorted(world_state.events.values(), key=lambda x: x.sequence)
-            if e.sequence <= effective_sequence
-        ]
+        # Find divergence sequence if on a branch
+        divergence_seq = None
+        if world_state.branch_id != "canon":
+            for e in world_state.events.values():
+                if not e.canonical and e.sequence > 0:
+                    if divergence_seq is None or e.sequence < divergence_seq:
+                        divergence_seq = e.sequence
 
-        # Retrieval from canon raw text vector search is only valid for canon branch.
-        # On alternate branches, rely on branch timeline events and branch knowledge facts.
-        if request.branch_id == "canon":
-            retrieved = [
-                result for result in search_story(request.message, limit=10)
-                if result.metadata.get("story_id") == request.story_id
-                and result.metadata.get("sequence", effective_sequence) <= effective_sequence
-            ][:5]
-        else:
-            retrieved = []
+        # Source evidence: filter out canon chunks that conflict with branch timeline
+        retrieved_raw = search_story(request.message, limit=10)
+        source_evidence = []
+        for r in retrieved_raw:
+            if r.metadata.get("story_id") == request.story_id:
+                seq = r.metadata.get("sequence", effective_sequence)
+                if seq <= effective_sequence:
+                    if world_state.branch_id != "canon" and divergence_seq is not None and seq >= divergence_seq:
+                        continue
+                    source_evidence.append(r.text)
+
+        # Include timeline events up to effective_sequence as core evidence
+        timeline_events = sorted(
+            [e for e in world_state.events.values() if e.sequence <= effective_sequence],
+            key=lambda e: e.sequence,
+        )
+        for e in timeline_events:
+            source_evidence.append(f"Seq {e.sequence} ({e.title}): {e.description}")
+
+        current_event = None
+        for e in timeline_events:
+            if e.sequence == effective_sequence:
+                current_event = e
+                break
+        if not current_event and timeline_events:
+            current_event = timeline_events[-1]
+
+        current_scene_str = (
+            f"Sequence {effective_sequence} ({current_event.title}): {current_event.description}"
+            if current_event
+            else f"Sequence {effective_sequence}: Scene in progress"
+        )
 
         relationships = [
             relationship.model_dump()
@@ -78,19 +102,18 @@ class CharacterAgent:
             and (relationship.character_a == character.id or relationship.character_b == character.id)
         ]
 
+        clean_knowledge = [
+            self._naturalize_fact(fact.statement)
+            for fact in knowledge
+        ]
+
         context = {
             "character": character.model_dump(),
-            "knowledge": [
-                self._naturalize_fact(fact.statement)
-                for fact in knowledge
-            ],
-            "timeline_events": timeline_events,
-            "source_evidence": [
-                result.text
-                for result in retrieved
-            ],
+            "knowledge": clean_knowledge,
+            "source_evidence": source_evidence,
             "relationships": relationships,
             "sequence": effective_sequence,
+            "current_scene": current_scene_str,
             "user_message": request.message,
             "conversation": request.conversation[-12:],
         }
@@ -112,14 +135,14 @@ class CharacterAgent:
                 ("human", self._build_prompt(context)),
             ])
 
-            raw_content = getattr(response, 'content', response)
-            if isinstance(raw_content, list):
+            output_text = response.content
+            if isinstance(output_text, list):
                 output_text = "".join(
                     part.get("text", "") if isinstance(part, dict) else str(part)
-                    for part in raw_content
+                    for part in output_text
                 )
-            else:
-                output_text = str(raw_content)
+            elif not isinstance(output_text, str):
+                output_text = str(output_text)
 
             return AgentResult(
                 success=True,
@@ -146,35 +169,49 @@ class CharacterAgent:
             )
 
     def _build_prompt(self, context: dict) -> str:
-        events_str = "\n".join(context["timeline_events"]) or "No prior events recorded."
-        knowledge_str = "\n".join(f"- {k}" for k in context["knowledge"]) or "No additional memory facts."
+        current_scene = context.get("current_scene", f"Sequence {context['sequence']}")
+        knowledge_lines = "\n".join(f"- {f}" for f in context["knowledge"]) or "No additional past memories recorded."
+        evidence_lines = "\n".join(f"- {e}" for e in context["source_evidence"]) or "No additional source excerpts."
+        rel_lines = "\n".join(
+            f"- {r.get('character_a')} & {r.get('character_b')}: {r.get('relationship_type', '')} (Trust: {r.get('trust_level', 0)})"
+            for r in context["relationships"]
+        ) or "No special relationships recorded."
+        conv_lines = "\n".join(
+            f"{msg.get('role', 'user')}: {msg.get('content', '')}"
+            for msg in context["conversation"]
+        ) or "No prior messages."
 
-        return f"""Character Profile:
-Name: {context["character"].get("name")}
-Description: {context["character"].get("description")}
-Personality Traits: {context["character"].get("personality", [])}
+        char = context["character"]
+        traits = ", ".join(char.get("personality", [])) if isinstance(char.get("personality"), list) else str(char.get("personality", ""))
 
-STORY TIMELINE EVENTS EXPERIENCED (Current Position: Sequence {context["sequence"]}):
-{events_str}
+        return f"""CHARACTER PROFILE:
+Name: {char.get('name', 'Character')}
+Description: {char.get('description', '')}
+Personality Traits: {traits}
 
-MY MEMORIES & OBSERVED FACTS (Up to Sequence {context["sequence"]}):
-{knowledge_str}
+CURRENT MOMENT / SCENE POSITION:
+{current_scene}
 
-RELATIONSHIPS & LOYALTIES:
-{context["relationships"]}
+YOUR MEMORIES & FACTS UP TO THIS SCENE (Sequence <= {context['sequence']}):
+{knowledge_lines}
 
-CONVERSATION HISTORY:
-{context["conversation"]}
+TIMELINE EVIDENCE:
+{evidence_lines}
 
-USER QUESTION:
-"{context["user_message"]}"
+RELATIONSHIPS:
+{rel_lines}
 
-CRITICAL INSTRUCTIONS:
-1. Speak as {context["character"].get("name")} in first person ("I", "my", "me").
-2. Answer based ONLY on the events and memories up to Sequence {context["sequence"]} above.
-3. Be deeply humanized, expressive, and conversational. Express your personal voice, thoughts, sensory reactions, and feelings.
-4. DO NOT mention canon events or future events that did NOT happen in your timeline sequence.
-5. Never speak as an AI, narrator, or system. Simply BE this character in this exact moment.
+RECENT CONVERSATION:
+{conv_lines}
+
+USER MESSAGE:
+"{context['user_message']}"
+
+INSTRUCTIONS FOR YOUR RESPONSE:
+1. Speak 100% as {char.get('name')} in first-person ("I", "my").
+2. Respond DIRECTLY to what the user said, staying completely in-character in this exact current scene (Sequence {context['sequence']}).
+3. Use ONLY your memories and events up to Sequence {context['sequence']}. Never mention or act on events after sequence {context['sequence']} or from alternate timelines.
+4. Express genuine emotion, physical gestures/actions in *asterisks*, and realistic conversational tone. Make it feel like an authentic Character.AI chat response.
 """
 
     def _fallback_response(self, character, knowledge, message: str) -> str:
@@ -218,7 +255,7 @@ CRITICAL INSTRUCTIONS:
             follow_up = "I'm not backing down."
         else:
             follow_up = "We need to be careful."
-        return f"{character.name}: {reaction} {memory}. {follow_up}"
+        return f"*Pauses thoughtfully.* {reaction} {memory} {follow_up}"
 
     @staticmethod
     def _naturalize_fact(fact: str) -> str:
@@ -230,7 +267,8 @@ CRITICAL INSTRUCTIONS:
             flags=re.IGNORECASE,
         )
         cleaned = re.sub(r"\bIn this .*?:\s*", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bIn this\b\s*:? ?", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bIn this\b\s*:? ?", "", cleaned, flags=re.IGNORECASE)
+        # Branch records sometimes repeat the same premise after metadata.
         clauses = [part.strip() for part in re.split(r"\s*:\s*", cleaned) if part.strip()]
         if clauses:
             cleaned = clauses[-1]

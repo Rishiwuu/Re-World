@@ -228,15 +228,6 @@ def create_new_branch(request: BranchCreateRequest):
     # Clone world state for the branch
     branch_ws = clone_world_state(ws, branch)
 
-    # Purge old canon knowledge facts for rewritten sequence points (>= request.sequence)
-    # so characters in this branch do not retain conflicting canon memories.
-    stale_fact_keys = [
-        k for k, fact in list(branch_ws.knowledge.items())
-        if fact.valid_from_sequence >= request.sequence
-    ]
-    for k in stale_fact_keys:
-        del branch_ws.knowledge[k]
-
     # Identify affected events (events at or after divergence)
     affected_events = [
         e for e in ws.events.values()
@@ -248,44 +239,50 @@ def create_new_branch(request: BranchCreateRequest):
     for e in affected_events:
         affected_char_ids.update(e.participants)
 
-    # The branch is an independent timeline. Create distinct non-canonical events
-    # for the alternate outcome so the main canon line remains intact while the branch
-    # renders in a parallel upper lane.
+    # The branch is an independent timeline.  Mark every downstream event as a
+    # generated alternate outcome so the UI can render a real second lane and
+    # downstream queries cannot silently use canon as if nothing changed.
     downstream_events = sorted(
-        (e for e in ws.events.values() if e.sequence >= request.sequence),
+        (e for e in branch_ws.events.values() if e.sequence >= request.sequence),
         key=lambda e: e.sequence,
     )
     alternate_outcomes = _alternate_outcomes(request.change, downstream_events)
     generated_fact_ids: set[str] = set()
     for event in downstream_events:
-        if event.id in alternate_outcomes:
-            outcome = alternate_outcomes[event.id]
-            branch_event_id = f"branch_{branch.id[:8]}_{event.id}"
-            branch_event = Event(
-                id=branch_event_id,
-                story_id=request.story_id,
-                title=outcome["title"],
-                description=outcome["description"],
-                sequence=event.sequence,
-                event_type=event.event_type,
-                participants=event.participants,
-                canonical=False,
-                branch_id=branch.id,
+        event.canonical = False
+        event.branch_id = branch.id
+        outcome = alternate_outcomes[event.id]
+        event.title = outcome["title"]
+        event.description = outcome["description"]
+        for character_id in event.participants:
+            fact_id = f"branch_{branch.id[:8]}_{event.id}_{character_id}"
+            branch_ws.knowledge[fact_id] = KnowledgeFact(
+                id=fact_id,
+                character_id=character_id,
+                statement=(
+                    f"In this alternate timeline (Premise: {request.change}): "
+                    f"{outcome['title']} — {outcome['description']}"
+                ),
+                valid_from_sequence=event.sequence,
+                provenance=Provenance.GENERATED,
+                confidence=0.9,
             )
-            branch_ws.add_event(branch_event)
-            target_chars = event.participants if event.participants else list(branch_ws.characters.keys())
-            for character_id in target_chars:
-                fact_id = f"fact_{branch_event_id}_{character_id}"
-                branch_ws.knowledge[fact_id] = KnowledgeFact(
-                    id=fact_id,
-                    character_id=character_id,
-                    statement=f"{outcome['title']}: {outcome['description']}",
-                    valid_from_sequence=event.sequence,
-                    provenance=Provenance.GENERATED,
-                    confidence=0.9,
-                )
-                generated_fact_ids.add(fact_id)
+            generated_fact_ids.add(fact_id)
 
+    # Create the explicit divergence event at the selected point.
+    consequence_id = f"branch_{branch.id[:8]}_consequence_1"
+    consequence_event = Event(
+        id=consequence_id,
+        story_id=request.story_id,
+        title=f"Divergence: {request.change[:80]}",
+        description=f"In this alternate timeline: {request.change}",
+        sequence=request.sequence,
+        event_type=EventType.PLOT,
+        participants=list(affected_char_ids)[:5],
+        canonical=False,
+        branch_id=branch.id,
+    )
+    branch_ws.add_event(consequence_event)
     branch_ws.current_point.sequence = max(
         (event.sequence for event in branch_ws.events.values()), default=request.sequence
     )
@@ -343,15 +340,18 @@ def get_branch_diff(branch_id: str):
     if branch is None:
         raise HTTPException(404, "Branch not found")
 
+    # Get branch world state
     branch_ws = get_world_state(branch.story_id, branch_id)
     if branch_ws is None:
         raise HTTPException(404, "Branch world state not found")
 
+    # Get canon world state
     parent_id = branch.parent_branch_id or "canon"
     canon_ws = get_world_state(branch.story_id, parent_id)
     if canon_ws is None:
         raise HTTPException(404, "Canon world state not found")
 
+    # Compute diff
     canon_events = set(canon_ws.events.keys())
     branch_events = set(branch_ws.events.keys())
 
@@ -395,17 +395,21 @@ def get_branch_diff(branch_id: str):
                 sequence=be.sequence,
             ))
 
+    # Characters affected
     affected_chars = set()
     for e in events_added + events_changed:
         be = branch_ws.events.get(e.event_id)
         if be and hasattr(be, 'participants'):
             affected_chars.update(be.participants)
 
+    # Relationships changed
     canon_rels = set(canon_ws.relationships.keys())
     branch_rels = set(branch_ws.relationships.keys())
     rel_changes = len(canon_rels.symmetric_difference(branch_rels))
 
+    # Ripple depth: how many events after divergence are affected
     ripple = len(events_added) + len(events_changed)
+
     total = len(events_added) + len(events_removed) + len(events_changed)
 
     return BranchDiffResponse(

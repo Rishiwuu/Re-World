@@ -38,17 +38,7 @@ def get_timeline(story_id: str, branch_id: str, up_to: int | None = None):
         if ws is None:
             raise HTTPException(404, f"Timeline not found for story '{story_id}'")
 
-    if branch_id != "canon":
-        canon_ws = get_world_state(story_id, "canon")
-        if canon_ws:
-            canon_events = {e.id: e for e in canon_ws.events.values() if e.canonical}
-            branch_events = {e.id: e for e in ws.events.values() if not e.canonical}
-            combined = {**canon_events, **branch_events}
-            events_list = sorted(combined.values(), key=lambda e: (e.sequence, 0 if e.canonical else 1))
-        else:
-            events_list = sorted(ws.events.values(), key=lambda e: (e.sequence, 0 if e.canonical else 1))
-    else:
-        events_list = sorted(ws.events.values(), key=lambda e: (e.sequence, 0 if e.canonical else 1))
+    events_list = sorted(ws.events.values(), key=lambda e: e.sequence)
 
     if up_to is not None:
         events_list = [e for e in events_list if e.sequence <= up_to]
