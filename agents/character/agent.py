@@ -54,47 +54,13 @@ class CharacterAgent:
             effective_sequence,
         )
 
-        # Find divergence sequence if on a branch
-        divergence_seq = None
-        if world_state.branch_id != "canon":
-            for e in world_state.events.values():
-                if not e.canonical and e.sequence > 0:
-                    if divergence_seq is None or e.sequence < divergence_seq:
-                        divergence_seq = e.sequence
-
-        # Source evidence: filter out canon chunks that conflict with branch timeline
-        retrieved_raw = search_story(request.message, limit=10)
-        source_evidence = []
-        for r in retrieved_raw:
-            if r.metadata.get("story_id") == request.story_id:
-                seq = r.metadata.get("sequence", effective_sequence)
-                if seq <= effective_sequence:
-                    if world_state.branch_id != "canon" and divergence_seq is not None and seq >= divergence_seq:
-                        continue
-                    source_evidence.append(r.text)
-
-        # Include timeline events up to effective_sequence as core evidence
-        timeline_events = sorted(
-            [e for e in world_state.events.values() if e.sequence <= effective_sequence],
-            key=lambda e: e.sequence,
-        )
-        for e in timeline_events:
-            source_evidence.append(f"Seq {e.sequence} ({e.title}): {e.description}")
-
-        current_event = None
-        for e in timeline_events:
-            if e.sequence == effective_sequence:
-                current_event = e
-                break
-        if not current_event and timeline_events:
-            current_event = timeline_events[-1]
-
-        current_scene_str = (
-            f"Sequence {effective_sequence} ({current_event.title}): {current_event.description}"
-            if current_event
-            else f"Sequence {effective_sequence}: Scene in progress"
-        )
-
+        # Retrieval is useful only when it belongs to this story and does not
+        # leak information from a later point on the timeline.
+        retrieved = [
+            result for result in search_story(request.message, limit=10)
+            if result.metadata.get("story_id") == request.story_id
+            and result.metadata.get("sequence", effective_sequence) <= effective_sequence
+        ][:5]
         relationships = [
             relationship.model_dump()
             for relationship in world_state.relationships.values()
@@ -102,18 +68,18 @@ class CharacterAgent:
             and (relationship.character_a == character.id or relationship.character_b == character.id)
         ]
 
-        clean_knowledge = [
-            self._naturalize_fact(fact.statement)
-            for fact in knowledge
-        ]
-
         context = {
             "character": character.model_dump(),
-            "knowledge": clean_knowledge,
-            "source_evidence": source_evidence,
+            "knowledge": [
+                fact.model_dump()
+                for fact in knowledge
+            ],
+            "source_evidence": [
+                result.text
+                for result in retrieved
+            ],
             "relationships": relationships,
             "sequence": effective_sequence,
-            "current_scene": current_scene_str,
             "user_message": request.message,
             "conversation": request.conversation[-12:],
         }
@@ -158,6 +124,9 @@ class CharacterAgent:
             logger.error(f"Character LLM error: {e}")
             return AgentResult(
                 success=True,
+                # Do not substitute a generic role-play line for an answer.
+                # The local evidence-only responder is more accurate than an
+                # unavailable provider and still respects the time boundary.
                 output=self._fallback_response(character, knowledge, request.message),
                 metadata={
                     "character_id": character.id,
@@ -169,49 +138,35 @@ class CharacterAgent:
             )
 
     def _build_prompt(self, context: dict) -> str:
-        current_scene = context.get("current_scene", f"Sequence {context['sequence']}")
-        knowledge_lines = "\n".join(f"- {f}" for f in context["knowledge"]) or "No additional past memories recorded."
-        evidence_lines = "\n".join(f"- {e}" for e in context["source_evidence"]) or "No additional source excerpts."
-        rel_lines = "\n".join(
-            f"- {r.get('character_a')} & {r.get('character_b')}: {r.get('relationship_type', '')} (Trust: {r.get('trust_level', 0)})"
-            for r in context["relationships"]
-        ) or "No special relationships recorded."
-        conv_lines = "\n".join(
-            f"{msg.get('role', 'user')}: {msg.get('content', '')}"
-            for msg in context["conversation"]
-        ) or "No prior messages."
+        return f"""Character:
+{context["character"]}
 
-        char = context["character"]
-        traits = ", ".join(char.get("personality", [])) if isinstance(char.get("personality"), list) else str(char.get("personality", ""))
+Known facts (strictly bounded to timeline position sequence <= {context["sequence"]}):
+{context["knowledge"]}
 
-        return f"""CHARACTER PROFILE:
-Name: {char.get('name', 'Character')}
-Description: {char.get('description', '')}
-Personality Traits: {traits}
+Relationships that shape this character's feelings and loyalties:
+{context["relationships"]}
 
-CURRENT MOMENT / SCENE POSITION:
-{current_scene}
+Source evidence:
+{context["source_evidence"]}
 
-YOUR MEMORIES & FACTS UP TO THIS SCENE (Sequence <= {context['sequence']}):
-{knowledge_lines}
+Timeline sequence:
+{context["sequence"]}
 
-TIMELINE EVIDENCE:
-{evidence_lines}
+User:
+{context["user_message"]}
 
-RELATIONSHIPS:
-{rel_lines}
+Recent conversation (continue it naturally; do not repeat it or label roles):
+{context["conversation"]}
 
-RECENT CONVERSATION:
-{conv_lines}
-
-USER MESSAGE:
-"{context['user_message']}"
-
-INSTRUCTIONS FOR YOUR RESPONSE:
-1. Speak 100% as {char.get('name')} in first-person ("I", "my").
-2. Respond DIRECTLY to what the user said, staying completely in-character in this exact current scene (Sequence {context['sequence']}).
-3. Use ONLY your memories and events up to Sequence {context['sequence']}. Never mention or act on events after sequence {context['sequence']} or from alternate timelines.
-4. Express genuine emotion, physical gestures/actions in *asterisks*, and realistic conversational tone. Make it feel like an authentic Character.AI chat response.
+Reply as this character speaking in first person, not as a narrator or an AI.
+Do not explain the character's personality or describe what the character would
+do. Simply be them in this moment and respond directly to the user's message.
+Stay in the scene. Let the character's voice emerge through emotional reactions,
+priorities, rhythm, and relationship-driven stakes. A short action in asterisks
+is allowed only when it feels natural. Never summarize the profile or quote raw
+fact text as if reading a report.
+Do not mention events or facts beyond sequence {context["sequence"]}.
 """
 
     def _fallback_response(self, character, knowledge, message: str) -> str:
@@ -255,7 +210,7 @@ INSTRUCTIONS FOR YOUR RESPONSE:
             follow_up = "I'm not backing down."
         else:
             follow_up = "We need to be careful."
-        return f"*Pauses thoughtfully.* {reaction} {memory} {follow_up}"
+        return f"{character.name}: {reaction} {memory}. {follow_up}"
 
     @staticmethod
     def _naturalize_fact(fact: str) -> str:

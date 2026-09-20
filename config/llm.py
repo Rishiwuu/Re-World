@@ -18,24 +18,26 @@ def get_llm():
 
     model_name = getattr(settings, "llm_model", "gemini-3.6-flash") or "gemini-3.6-flash"
 
-    # Try preferred model or standard Gemini flash models
-    for m in [model_name, "gemini-3.6-flash", "gemini-1.5-flash", "gemini-2.0-flash"]:
+    # Try preferred model or standard valid Gemini models
+    for m in [model_name, "gemini-3.6-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
         try:
             return ChatGoogleGenerativeAI(
                 model=m,
                 google_api_key=api_key,
-                temperature=0.3,
+                temperature=0.7,
                 timeout=15,
-                max_retries=1,
+                max_retries=2,
             )
         except Exception as exc:
             logger.warning("Failed to initialize model %s: %s", m, exc)
             continue
 
+
     return ChatGoogleGenerativeAI(
-        model="gemini-3.6-flash",
+        model="gemini-1.5-flash",
         google_api_key=api_key,
-        temperature=0.3,
+        temperature=0.7,
         timeout=15,
-        max_retries=1,
+        max_retries=2,
     )
+

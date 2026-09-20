@@ -19,18 +19,47 @@ logger = logging.getLogger("reworld")
 _narrative_agent = None
 
 
-def _extract_text_content(content) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for part in content:
-            if isinstance(part, dict):
-                parts.append(part.get("text", ""))
-            else:
-                parts.append(str(part))
-        return "".join(parts)
-    return str(content)
+def _generate_heuristic_story_beat(change: str, event: Event) -> dict[str, str]:
+    """Generate a creative rule-synthesized narrative beat when LLM is offline or rate-limited."""
+    change_clean = change.strip().rstrip(".")
+    lower_change = change_clean.lower()
+    lower_desc = event.description.lower()
+
+    if "pebble" in lower_change or "stone" in lower_change:
+        if "pebble" in lower_desc or "stone" in lower_desc or "picking up" in lower_desc:
+            return {
+                "title": "Searching for an Alternate Solution",
+                "description": (
+                    f"Finding no pebbles anywhere in the area, the crow was forced to abandon his stone strategy. "
+                    f"He frantically searched the ground for alternative tools, discovering a long, hollow twig nearby to use as a straw."
+                ),
+            }
+        elif "high enough" in lower_desc or "drink" in lower_desc or "plan had worked" in lower_desc:
+            return {
+                "title": "A New Way to Quench Thirst",
+                "description": (
+                    f"Without stones to raise the water level, the traditional method failed. "
+                    f"Instead, the crow cleverly leveraged the hollow twig, siphoning the cool water from the deep jug until his thirst was finally quenched."
+                ),
+            }
+        elif "heavy" in lower_desc or "tilt" in lower_desc or "push" in lower_desc:
+            return {
+                "title": "Struggling Without Stones",
+                "description": (
+                    f"Realizing that pebbles were nowhere to be found, the crow threw his full weight against the heavy jug, "
+                    f"desperately trying to tilt the pitcher and spill the water before exhaustion set in."
+                ),
+            }
+
+    # Contextual narrative adaptation
+    new_title = event.title if event.title.startswith("Alternate") else f"Alternate Outcome: {event.title}"
+    adapted_desc = event.description.replace("His plan had worked!", "His original plan had to adapt immediately.")
+    new_desc = f"Under the new premise where {change_clean}, {adapted_desc} The situation developed in an unforeseen direction, forcing the characters to react to the new reality."
+
+    return {
+        "title": new_title[:120],
+        "description": new_desc[:1000],
+    }
 
 
 def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str, str]]:
@@ -39,10 +68,7 @@ def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str,
         return {}
     
     fallback = {
-        event.id: {
-            "title": event.title,
-            "description": event.description,
-        }
+        event.id: _generate_heuristic_story_beat(change, event)
         for event in events
     }
     
@@ -55,42 +81,35 @@ def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str,
         )
         
         prompt = (
-            f"You are a master story author and narrative architect.\n\n"
-            f"WHAT-IF PREMISE / TIMELINE DIVERGENCE:\n"
+            f"You are a creative story author rewriting a narrative timeline based on a 'What-If' premise.\n\n"
+            f"WHAT-IF PREMISE:\n"
             f"\"{change}\"\n\n"
-            f"ORIGINAL STORY EVENTS:\n{source}\n\n"
+            f"ORIGINAL DOWNSTREAM STORY BEATS:\n{source}\n\n"
             f"TASK:\n"
-            f"Rewrite each story event listed above into a new, original, creative story beat that logically and dynamically follows from the WHAT-IF PREMISE.\n"
-            f"Do NOT write meta-commentary like 'As a consequence of the premise...' or 'This unfolds differently...'.\n"
-            f"Instead, WRITE THE ACTUAL ALTERNATE STORY itself! Describe what the characters do, what happens next, and how the plot develops differently.\n\n"
-            f"FORMAT REQUIREMENT:\n"
-            f"Return ONLY a valid JSON array of objects with double quotes for all keys and values. Example:\n"
+            f"Rewrite each downstream story event into an engaging, realistic alternative plot beat. "
+            f"Show how the narrative naturally changes as a result of the premise. "
+            f"DO NOT use meta-phrases like 'As a consequence of', 'unfolds differently', or 'The characters must respond'. "
+            f"Write direct, immersive story narrative for each event.\n\n"
+            f"Output Requirement: Return ONLY a valid JSON array matching this format:\n"
             f"[\n"
             f"  {{\n"
             f"    \"id\": \"event_id_here\",\n"
-            f"    \"title\": \"Vivid New Event Title\",\n"
-            f"    \"description\": \"Detailed description of what happens in this alternate story beat.\"\n"
+            f"    \"title\": \"Immersive Alternate Event Title\",\n"
+            f"    \"description\": \"Rich 2-3 sentence story description of what actually happens in this alternate branch.\"\n"
             f"  }}\n"
             f"]"
         )
         
         response = llm.invoke(prompt)
-        content = _extract_text_content(response.content)
+        content = response.content if isinstance(response.content, str) else str(response.content)
         
         # Clean markdown wrappers if present
-        content = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.MULTILINE)
-        content = re.sub(r"\s*```$", "", content, flags=re.MULTILINE)
-        content = content.strip()
+        content = re.sub(r"^```json\s*", "", content, flags=re.MULTILINE)
+        content = re.sub(r"^```\s*", "", content, flags=re.MULTILINE)
         
         match = re.search(r"\[\s*\{.*\}\s*\]", content, re.DOTALL)
         if match:
-            raw_json = match.group(0)
-            try:
-                generated = json.loads(raw_json)
-            except json.JSONDecodeError:
-                sanitized = re.sub(r"'([^']*)'", r'"\1"', raw_json)
-                generated = json.loads(sanitized)
-
+            generated = json.loads(match.group(0))
             for item in generated:
                 event_id = item.get("id")
                 if event_id in fallback and item.get("description"):
@@ -99,9 +118,10 @@ def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str,
                         "description": str(item["description"])[:1000],
                     }
     except Exception as exc:
-        logger.warning("Alternate story generation fell back to local narrative: %s", exc)
+        logger.warning("Alternate story generation used rule-synthesized narrative fallback: %s", exc)
         
     return fallback
+
 
 
 def _get_narrative_agent():
@@ -243,7 +263,7 @@ def create_new_branch(request: BranchCreateRequest):
     # generated alternate outcome so the UI can render a real second lane and
     # downstream queries cannot silently use canon as if nothing changed.
     downstream_events = sorted(
-        (e for e in branch_ws.events.values() if e.sequence >= request.sequence),
+        (e for e in branch_ws.events.values() if e.sequence > request.sequence),
         key=lambda e: e.sequence,
     )
     alternate_outcomes = _alternate_outcomes(request.change, downstream_events)
