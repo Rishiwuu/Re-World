@@ -12,6 +12,7 @@ export default function TimelineViz() {
   const containerRef = useRef<HTMLDivElement>(null);
   
   const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [canonEvents, setCanonEvents] = useState<TimelineEvent[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
   const [viewMode, setViewMode] = useState<"timeline" | "network">("timeline");
@@ -22,11 +23,13 @@ export default function TimelineViz() {
       setLoading(true);
       Promise.all([
         api.getTimeline(storyId, branchId),
-        api.getCharacters(storyId, branchId)
+        api.getCharacters(storyId, branchId),
+        branchId !== "canon" ? api.getTimeline(storyId, "canon") : Promise.resolve(null),
       ])
-        .then(([timelineData, charData]) => {
+        .then(([timelineData, charData, canonData]) => {
           setEvents(timelineData.events || []);
           setCharacters(charData || []);
+          setCanonEvents(canonData?.events || timelineData.events || []);
           if (timelineData.events?.length > 0) {
             // Find current event or latest
             const match = timelineData.events.find(e => e.sequence === currentSequence) || timelineData.events[timelineData.events.length - 1];
@@ -47,8 +50,9 @@ export default function TimelineViz() {
   }, [currentSequence, events]);
 
   const maxSeq = useMemo(() => {
-    return Math.max(...events.map(e => e.sequence), 1);
-  }, [events]);
+    const seqs = [...events.map(e => e.sequence), ...canonEvents.map(e => e.sequence)];
+    return Math.max(...seqs, 1);
+  }, [events, canonEvents]);
 
   // D3 Visualization Renderer
   useEffect(() => {
@@ -72,7 +76,7 @@ export default function TimelineViz() {
     } else {
       renderNetworkView(svg, width, height);
     }
-  }, [events, currentSequence, viewMode, characters]);
+  }, [events, canonEvents, currentSequence, viewMode, characters]);
 
   const renderTimelineView = (svg: d3.Selection<SVGSVGElement, unknown, null, undefined>, width: number, height: number) => {
     const margin = { top: 60, right: 60, bottom: 60, left: 60 };
@@ -80,10 +84,44 @@ export default function TimelineViz() {
     const centerY = height / 2;
 
     const sortedEvents = [...events].sort((a, b) => a.sequence - b.sequence);
-    
+    const branchEvents = sortedEvents.filter(e => !e.canonical);
+
+    interface DisplayNode extends TimelineEvent {
+      isFutureCanon?: boolean;
+    }
+
+    const displayNodes: DisplayNode[] = [];
+    const divergenceSeq = branchEvents.length > 0 ? branchEvents[0].sequence : Infinity;
+
+    if (branchId !== "canon" && canonEvents.length > 0) {
+      const sortedCanon = [...canonEvents].sort((a, b) => a.sequence - b.sequence);
+      sortedCanon.forEach(ce => {
+        displayNodes.push({
+          ...ce,
+          canonical: true,
+          isFutureCanon: ce.sequence >= divergenceSeq,
+        });
+      });
+      branchEvents.forEach(be => {
+        displayNodes.push({
+          ...be,
+          canonical: false,
+          isFutureCanon: false,
+        });
+      });
+    } else {
+      sortedEvents.forEach(e => {
+        displayNodes.push({
+          ...e,
+          isFutureCanon: false,
+        });
+      });
+    }
+
     // Linear scale for sequences
     const minSeq = 1;
-    const effectiveMaxSeq = Math.max(maxSeq, 2);
+    const calculatedMax = Math.max(...displayNodes.map(d => d.sequence), maxSeq, 1);
+    const effectiveMaxSeq = Math.max(calculatedMax, 2);
     const xScale = d3.scaleLinear()
       .domain([minSeq, effectiveMaxSeq])
       .range([0, innerWidth]);
@@ -116,9 +154,7 @@ export default function TimelineViz() {
       .attr("stroke-width", 3)
       .attr("stroke-linecap", "round");
 
-    // A branch gets its own lane above canon.  This makes a divergence visible
-    // even when the alternate events have the same sequence numbers as canon.
-    const branchEvents = sortedEvents.filter(e => !e.canonical);
+    // A branch gets its own lane above canon.
     if (branchEvents.length > 0) {
       const firstBranchSeq = branchEvents[0].sequence;
       const startX = xScale(Math.max(minSeq, firstBranchSeq - 1));
@@ -182,7 +218,7 @@ export default function TimelineViz() {
 
     // Draw Event Nodes
     const nodeGroups = g.selectAll(".event-node")
-      .data(sortedEvents)
+      .data(displayNodes)
       .enter()
       .append("g")
       .attr("class", "event-node cursor-pointer")
@@ -196,7 +232,7 @@ export default function TimelineViz() {
       });
 
     // Outer glow for active node
-    nodeGroups.filter(d => d.sequence === currentSequence)
+    nodeGroups.filter(d => d.sequence === currentSequence && !d.isFutureCanon)
       .append("circle")
       .attr("r", 18)
       .attr("fill", d => d.canonical ? "rgba(234, 179, 8, 0.2)" : "rgba(139, 92, 246, 0.2)")
@@ -207,14 +243,16 @@ export default function TimelineViz() {
       .attr("r", d => d.sequence === currentSequence ? 11 : 8)
       .attr("fill", d => {
         if (!d.canonical) return "#8b5cf6";
+        if (d.isFutureCanon) return "rgba(234, 179, 8, 0.25)";
         return d.sequence <= currentSequence ? "#eab308" : "#27272a";
       })
       .attr("stroke", d => {
-        if (d.sequence === currentSequence) return "#ffffff";
+        if (d.sequence === currentSequence && !d.isFutureCanon) return "#ffffff";
+        if (d.isFutureCanon) return "rgba(234, 179, 8, 0.45)";
         return d.canonical ? "#eab308" : "#8b5cf6";
       })
       .attr("stroke-width", d => d.sequence === currentSequence ? 3 : 2)
-      .attr("opacity", d => d.sequence > currentSequence ? 0.4 : 1)
+      .attr("opacity", d => d.isFutureCanon ? 0.35 : (d.sequence > currentSequence ? 0.4 : 1))
       .transition()
       .duration(300);
 
@@ -222,7 +260,7 @@ export default function TimelineViz() {
     nodeGroups.append("text")
       .attr("y", 3)
       .attr("text-anchor", "middle")
-      .attr("fill", d => d.sequence <= currentSequence ? "#09090b" : "#a1a1aa")
+      .attr("fill", d => d.isFutureCanon ? "rgba(254, 240, 138, 0.5)" : (d.sequence <= currentSequence ? "#09090b" : "#a1a1aa"))
       .attr("font-family", "monospace")
       .attr("font-size", "9px")
       .attr("font-weight", "bold")
@@ -232,15 +270,20 @@ export default function TimelineViz() {
     nodeGroups.append("text")
       .attr("y", (d, i) => (!d.canonical ? -68 : (i % 2 === 0 ? 32 : -26)))
       .attr("text-anchor", "middle")
-      .attr("fill", d => d.sequence === currentSequence ? "#ffffff" : (d.sequence <= currentSequence ? "#f4f4f5" : "#71717a"))
+      .attr("fill", d => {
+        if (d.isFutureCanon) return "rgba(254, 240, 138, 0.45)";
+        return d.sequence === currentSequence ? "#ffffff" : (d.sequence <= currentSequence ? "#f4f4f5" : "#71717a");
+      })
       .attr("font-family", "serif")
       .attr("font-size", d => d.sequence === currentSequence ? "12px" : "11px")
       .attr("font-weight", d => d.sequence === currentSequence ? "bold" : "normal")
+      .attr("opacity", d => d.isFutureCanon ? 0.45 : 1)
       .text(d => {
         const text = d.title || `Event ${d.sequence}`;
         return text.length > 22 ? text.substring(0, 22) + "…" : text;
       });
   };
+
 
   const renderNetworkView = (svg: d3.Selection<SVGSVGElement, unknown, null, undefined>, width: number, height: number) => {
     // Build graph nodes and links from characters and events
