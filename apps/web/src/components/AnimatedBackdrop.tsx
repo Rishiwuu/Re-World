@@ -6,51 +6,45 @@ import { useAppContext } from "./AppProvider";
 export function AnimatedBackdrop() {
   const { activeThemePack, activeTextureMesh, isDarkMode } = useAppContext();
 
-  // Mesh overlays based on selected texture mesh
   const getMeshStyle = () => {
     switch (activeTextureMesh) {
       case "matrix":
         return {
-          backgroundImage: `
-            linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)
-          `,
+          backgroundImage: isDarkMode
+            ? `linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)`
+            : `linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)`,
           backgroundSize: "24px 24px",
         };
       case "starfield":
         return {
-          backgroundImage: `
-            radial-gradient(circle at 20% 30%, rgba(255,255,255,0.2) 1px, transparent 2px),
-            radial-gradient(circle at 75% 15%, rgba(255,255,255,0.15) 1.5px, transparent 2px),
-            radial-gradient(circle at 50% 70%, rgba(255,255,255,0.18) 1px, transparent 2px),
-            radial-gradient(circle at 85% 80%, rgba(255,255,255,0.12) 1.5px, transparent 2px)
-          `,
+          backgroundImage: isDarkMode
+            ? `radial-gradient(circle at 20% 30%, rgba(255,255,255,0.2) 1px, transparent 2px)`
+            : `radial-gradient(circle at 20% 30%, rgba(0,0,0,0.1) 1px, transparent 2px)`,
           backgroundSize: "120px 120px",
         };
       case "glass":
-        return {
-          backgroundImage: "none",
-        };
+        return { backgroundImage: "none" };
       case "silk":
       default:
         return {
-          backgroundImage: `
-            repeating-linear-gradient(0deg, rgba(255,255,255,0.08) 0px, transparent 1px, transparent 3px),
-            repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0px, transparent 1px, transparent 6px)
-          `,
+          backgroundImage: isDarkMode
+            ? `repeating-linear-gradient(0deg, rgba(255,255,255,0.08) 0px, transparent 1px, transparent 3px)`
+            : `repeating-linear-gradient(0deg, rgba(0,0,0,0.03) 0px, transparent 1px, transparent 3px)`,
           backgroundSize: "6px 6px",
         };
     }
   };
 
+  const bgColor = isDarkMode ? activeThemePack.bgHex : "#f8fafc";
+
   return (
     <div
       aria-hidden="true"
-      className="shader-gradient-backdrop pointer-events-none fixed inset-0 z-0 overflow-hidden transition-colors duration-500"
-      style={{ backgroundColor: activeThemePack.bgHex }}
+      className="shader-gradient-backdrop pointer-events-none fixed inset-0 z-0 overflow-hidden transition-colors duration-400"
+      style={{ backgroundColor: bgColor }}
     >
       {/* ── 3D ShaderGradient Canvas ───────────────────────────────────── */}
-      <div className={`absolute inset-0 transition-opacity duration-500 ${isDarkMode ? 'opacity-95' : 'opacity-80'}`}>
+      <div className={`absolute inset-0 transition-opacity duration-500 ${isDarkMode ? 'opacity-95' : 'opacity-35'}`}>
         <ShaderGradientCanvas
           style={{
             position: "absolute",
@@ -77,7 +71,7 @@ export function AnimatedBackdrop() {
             color1={activeThemePack.color1}
             color2={activeThemePack.color2}
             color3={activeThemePack.color3}
-            brightness={isDarkMode ? 1.15 : 1.35}
+            brightness={isDarkMode ? 1.15 : 1.45}
             grain="off"
           />
         </ShaderGradientCanvas>
@@ -85,7 +79,7 @@ export function AnimatedBackdrop() {
 
       {/* ── Texture Mesh Overlay ────────────────────────────────────── */}
       <div
-        className={`absolute inset-0 pointer-events-none mix-blend-overlay transition-all duration-500 ${isDarkMode ? 'opacity-25' : 'opacity-15'}`}
+        className={`absolute inset-0 pointer-events-none mix-blend-overlay transition-all duration-500 ${isDarkMode ? 'opacity-25' : 'opacity-20'}`}
         style={getMeshStyle()}
       />
 
@@ -98,8 +92,8 @@ export function AnimatedBackdrop() {
             radial-gradient(ellipse 70% 60% at 25% 75%, ${activeThemePack.color1}44 0%, transparent 80%),
             radial-gradient(ellipse 100% 100% at 50% 50%, transparent 40%, ${activeThemePack.bgHex}b3 100%)
           ` : `
-            radial-gradient(ellipse 65% 55% at 75% 25%, ${activeThemePack.accentColor}22 0%, transparent 70%),
-            radial-gradient(ellipse 80% 70% at 25% 75%, ${activeThemePack.color1}22 0%, transparent 80%)
+            radial-gradient(ellipse 65% 55% at 75% 25%, ${activeThemePack.accentColor}18 0%, transparent 70%),
+            radial-gradient(ellipse 80% 70% at 25% 75%, ${activeThemePack.color1}18 0%, transparent 80%)
           `,
         }}
       />

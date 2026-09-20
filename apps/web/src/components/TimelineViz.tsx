@@ -7,7 +7,7 @@ import { useAppContext } from "./AppProvider";
 import { Clock, Layers, Sliders, Users } from "lucide-react";
 
 export default function TimelineViz() {
-  const { storyId, branchId, setBranchId, currentSequence, setCurrentSequence, setSelectedCharacterId } = useAppContext();
+  const { storyId, branchId, setBranchId, currentSequence, setCurrentSequence, setSelectedCharacterId, isDarkMode } = useAppContext();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -99,10 +99,10 @@ export default function TimelineViz() {
     } else {
       renderNetworkView(svg, width, height);
     }
-  }, [events, canonEvents, allBranches, branchMap, currentSequence, branchId, viewMode, characters]);
+  }, [events, canonEvents, allBranches, branchMap, currentSequence, branchId, viewMode, characters, isDarkMode]);
 
   const renderTimelineView = (svg: d3.Selection<SVGSVGElement, unknown, null, undefined>, width: number, height: number) => {
-    const margin = { top: 88, right: 70, bottom: 88, left: 70 };
+    const margin = { top: 70, right: 70, bottom: 70, left: 70 };
     const innerWidth = Math.max(width - margin.left - margin.right, 300);
     const centerY = height / 2;
 
@@ -135,37 +135,43 @@ export default function TimelineViz() {
     const directBranches = allBranches.filter(b => !b.parent_branch_id || b.parent_branch_id === "canon");
     const childBranches = allBranches.filter(b => b.parent_branch_id && b.parent_branch_id !== "canon");
 
-    const branchVisualMap: Record<string, { yOffset: number; color: string; parentY: number; divSeq: number }> = {};
-    branchVisualMap["canon"] = { yOffset: 0, color: "#eab308", parentY: 0, divSeq: 1 };
+    const branchVisualMap: Record<string, { yOffset: number; color: string; label: string; parentY: number; divSeq: number }> = {};
+    const mainColor = isDarkMode ? "#eab308" : "#d97706";
+    const directBranchColor = isDarkMode ? "#a855f7" : "#7e22ce";
+    const childBranchColor = isDarkMode ? "#ef4444" : "#dc2626";
+
+    branchVisualMap["canon"] = { yOffset: 0, color: mainColor, label: "main timeline", parentY: 0, divSeq: 1 };
 
     let upIndex = 0;
     let downIndex = 0;
 
-    // Direct branches off main timeline (purple lines curving up/down)
-    directBranches.forEach((b, index) => {
+    // Direct branches off main timeline
+    directBranches.forEach((b, idx) => {
       let y: number;
-      if (index % 2 === 0) {
+      if (idx % 2 === 0) {
         upIndex++;
-        y = -80 * upIndex;
+        y = -60 * upIndex;
       } else {
         downIndex++;
-        y = 80 * downIndex;
+        y = 60 * downIndex;
       }
       branchVisualMap[b.id] = {
         yOffset: y,
-        color: "#a855f7",
+        color: directBranchColor,
+        label: idx === 0 ? "branched timeline" : `branched timeline #${idx + 1}`,
         parentY: 0,
         divSeq: b.divergence_sequence,
       };
     });
 
-    // Child branches off a branched timeline (red lines curving further out)
+    // Child branches off a branched timeline
     childBranches.forEach((b) => {
-      const parentVisual = branchVisualMap[b.parent_branch_id || ""] || { yOffset: -80, color: "#a855f7", parentY: 0 };
-      const childY = parentVisual.yOffset <= 0 ? parentVisual.yOffset - 72 : parentVisual.yOffset + 72;
+      const parentVisual = branchVisualMap[b.parent_branch_id || ""] || { yOffset: -60, color: directBranchColor, parentY: 0 };
+      const childY = parentVisual.yOffset <= 0 ? parentVisual.yOffset - 50 : parentVisual.yOffset + 50;
       branchVisualMap[b.id] = {
         yOffset: childY,
-        color: "#ef4444",
+        color: childBranchColor,
+        label: "child branched timeline",
         parentY: parentVisual.yOffset,
         divSeq: b.divergence_sequence,
       };
@@ -181,9 +187,18 @@ export default function TimelineViz() {
       .attr("y1", 0)
       .attr("x2", innerWidth)
       .attr("y2", 0)
-      .attr("stroke", "#eab308")
+      .attr("stroke", mainColor)
       .attr("stroke-width", 3.5)
       .attr("stroke-linecap", "round");
+
+    g.append("text")
+      .attr("x", 0)
+      .attr("y", 22)
+      .attr("fill", mainColor)
+      .attr("font-family", "monospace")
+      .attr("font-size", "10px")
+      .attr("font-weight", "bold")
+      .text("main timeline");
 
     // 3. Draw Paths for all Branches (Direct & Child)
     allBranches.forEach((b) => {
@@ -195,14 +210,11 @@ export default function TimelineViz() {
       if (branchOnlyEvents.length === 0) return;
 
       const divSeq = b.divergence_sequence;
-      // Start one sequence before the branch node, leaving a clear forward
-      // connector from the parent timeline to the numbered branch node.
       const startX = xScale(Math.max(minSeq, divSeq - 1));
       const endX = xScale(divSeq);
       const parentY = visual.parentY;
       const targetY = visual.yOffset;
 
-      // Curve path from parent timeline to branch lane
       const curveD = `M ${startX} ${parentY} C ${startX + 24} ${parentY + (targetY - parentY) * 0.6}, ${endX - 12} ${targetY}, ${endX} ${targetY}`;
 
       g.append("path")
@@ -213,7 +225,6 @@ export default function TimelineViz() {
         .attr("stroke-dasharray", b.id === branchId ? "none" : "4 4")
         .attr("opacity", b.id === branchId ? 1 : 0.85);
 
-      // Horizontal path along branch lane
       const lastSeq = Math.max(...branchOnlyEvents.map(e => e.sequence));
       const branchLineX = xScale(lastSeq);
 
@@ -227,6 +238,14 @@ export default function TimelineViz() {
         .attr("stroke-dasharray", b.id === branchId ? "none" : "4 4")
         .attr("opacity", b.id === branchId ? 1 : 0.85);
 
+      g.append("text")
+        .attr("x", Math.min(branchLineX + 8, innerWidth - 100))
+        .attr("y", targetY + (targetY <= 0 ? 18 : -10))
+        .attr("fill", visual.color)
+        .attr("font-family", "monospace")
+        .attr("font-size", "10px")
+        .attr("font-weight", "bold")
+        .text(visual.label);
     });
 
     // 4. Knowledge Horizon vertical barrier
@@ -240,7 +259,7 @@ export default function TimelineViz() {
     horizonGroup.append("line")
       .attr("y1", -centerY + 20)
       .attr("y2", centerY - 20)
-      .attr("stroke", "#eab308")
+      .attr("stroke", mainColor)
       .attr("stroke-width", 1.5)
       .attr("stroke-dasharray", "5 5")
       .attr("opacity", 0.85);
@@ -251,15 +270,15 @@ export default function TimelineViz() {
       .attr("width", 110)
       .attr("height", 20)
       .attr("rx", 4)
-      .attr("fill", "#18181b")
-      .attr("stroke", "#eab308")
-      .attr("stroke-width", 1);
+      .attr("fill", isDarkMode ? "#18181b" : "#ffffff")
+      .attr("stroke", mainColor)
+      .attr("stroke-width", 1.5);
 
     horizonGroup.append("text")
       .attr("x", 0)
       .attr("y", -centerY + 24)
       .attr("text-anchor", "middle")
-      .attr("fill", "#eab308")
+      .attr("fill", mainColor)
       .attr("font-family", "monospace")
       .attr("font-size", "10px")
       .attr("font-weight", "bold")
@@ -277,7 +296,6 @@ export default function TimelineViz() {
 
     const nodeRenderItems: NodeRenderItem[] = [];
 
-    // Main canon events (y = 0)
     const sortedCanon = [...canonEvents].sort((a, b) => a.sequence - b.sequence);
     sortedCanon.forEach(ce => {
       const isFutureCanon = branchId !== "canon" && ce.sequence >= activeDivergenceSeq;
@@ -285,13 +303,12 @@ export default function TimelineViz() {
         event: ce,
         targetBranchId: "canon",
         yOffset: 0,
-        color: "#eab308",
+        color: mainColor,
         isFutureCanon,
         isActiveBranch: branchId === "canon",
       });
     });
 
-    // Branch events for each branch
     allBranches.forEach((b) => {
       const visual = branchVisualMap[b.id];
       if (!visual) return;
@@ -323,23 +340,21 @@ export default function TimelineViz() {
         setSelectedEvent(d.event);
       });
 
-    // Outer glow for active selected sequence
     nodeGroups.filter(d => d.event.sequence === currentSequence && d.isActiveBranch && !d.isFutureCanon)
       .append("circle")
       .attr("r", 18)
       .attr("fill", d => `${d.color}33`)
       .attr("filter", "url(#glow)");
 
-    // Base Node Circles
     nodeGroups.append("circle")
       .attr("r", d => d.event.sequence === currentSequence && d.isActiveBranch ? 11 : 8)
       .attr("fill", d => {
-        if (d.isFutureCanon) return "rgba(234, 179, 8, 0.25)";
-        return d.event.sequence <= currentSequence || d.isActiveBranch ? d.color : "#27272a";
+        if (d.isFutureCanon) return isDarkMode ? "rgba(234, 179, 8, 0.25)" : "rgba(217, 119, 6, 0.2)";
+        return d.event.sequence <= currentSequence || d.isActiveBranch ? d.color : (isDarkMode ? "#27272a" : "#cbd5e1");
       })
       .attr("stroke", d => {
-        if (d.event.sequence === currentSequence && d.isActiveBranch && !d.isFutureCanon) return "#ffffff";
-        if (d.isFutureCanon) return "rgba(234, 179, 8, 0.45)";
+        if (d.event.sequence === currentSequence && d.isActiveBranch && !d.isFutureCanon) return isDarkMode ? "#ffffff" : "#0f172a";
+        if (d.isFutureCanon) return isDarkMode ? "rgba(234, 179, 8, 0.45)" : "rgba(217, 119, 6, 0.5)";
         return d.color;
       })
       .attr("stroke-width", d => d.event.sequence === currentSequence && d.isActiveBranch ? 3 : 2)
@@ -347,27 +362,31 @@ export default function TimelineViz() {
       .transition()
       .duration(300);
 
-    // Sequence numbers inside/above circles
     nodeGroups.append("text")
       .attr("y", 3)
       .attr("text-anchor", "middle")
-      .attr("fill", d => d.isFutureCanon ? "rgba(254, 240, 138, 0.5)" : (d.event.sequence <= currentSequence || d.isActiveBranch ? "#09090b" : "#a1a1aa"))
+      .attr("fill", d => {
+        if (d.isFutureCanon) return isDarkMode ? "rgba(254, 240, 138, 0.5)" : "rgba(180, 83, 9, 0.6)";
+        if (d.event.sequence <= currentSequence || d.isActiveBranch) return "#ffffff";
+        return isDarkMode ? "#a1a1aa" : "#475569";
+      })
       .attr("font-family", "monospace")
       .attr("font-size", "9px")
       .attr("font-weight", "bold")
       .text(d => d.event.sequence);
 
-    // Labels with staggered heights
+    // Event title labels in crisp dark slate in light mode
     nodeGroups.append("text")
       .attr("y", (d, i) => (d.yOffset < 0 ? -22 : (d.yOffset > 0 ? 32 : (i % 2 === 0 ? 32 : -26))))
       .attr("text-anchor", "middle")
       .attr("fill", d => {
-        if (d.isFutureCanon) return "rgba(254, 240, 138, 0.45)";
-        return d.event.sequence === currentSequence && d.isActiveBranch ? "#ffffff" : "#f4f4f5";
+        if (d.isFutureCanon) return isDarkMode ? "rgba(254, 240, 138, 0.45)" : "rgba(180, 83, 9, 0.5)";
+        if (d.event.sequence === currentSequence && d.isActiveBranch) return isDarkMode ? "#ffffff" : "#0f172a";
+        return isDarkMode ? "#f4f4f5" : "#0f172a";
       })
       .attr("font-family", "serif")
       .attr("font-size", d => d.event.sequence === currentSequence && d.isActiveBranch ? "12px" : "11px")
-      .attr("font-weight", d => d.event.sequence === currentSequence && d.isActiveBranch ? "bold" : "normal")
+      .attr("font-weight", d => d.event.sequence === currentSequence && d.isActiveBranch ? "bold" : "bold")
       .attr("opacity", d => d.isFutureCanon ? 0.45 : 1)
       .text(d => {
         const text = d.event.title || `Event ${d.event.sequence}`;
@@ -425,7 +444,7 @@ export default function TimelineViz() {
       .force("collision", d3.forceCollide().radius(30));
 
     const link = g.append("g")
-      .attr("stroke", "#3f3f46")
+      .attr("stroke", isDarkMode ? "#3f3f46" : "#cbd5e1")
       .attr("stroke-opacity", 0.6)
       .selectAll("line")
       .data(graphLinks)
@@ -452,13 +471,13 @@ export default function TimelineViz() {
     node.append("circle")
       .attr("r", d => d.type === "character" ? 14 : 10)
       .attr("fill", d => d.type === "character" ? "#eab308" : "#8b5cf6")
-      .attr("stroke", "#ffffff")
+      .attr("stroke", isDarkMode ? "#ffffff" : "#0f172a")
       .attr("stroke-width", 1.5);
 
     node.append("text")
       .attr("dy", d => d.type === "character" ? 24 : 20)
       .attr("text-anchor", "middle")
-      .attr("fill", "#f4f4f5")
+      .attr("fill", isDarkMode ? "#f4f4f5" : "#0f172a")
       .attr("font-size", "10px")
       .attr("font-family", "sans-serif")
       .text(d => d.label.length > 18 ? d.label.substring(0, 18) + "…" : d.label);
@@ -478,17 +497,23 @@ export default function TimelineViz() {
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
       
       {/* Visualizer Controls Top Toolbar */}
-      <div className="flex-none px-6 py-3 border-b border-white/10 bg-black/20 backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
+      <div className={`flex-none px-6 py-3 border-b flex flex-wrap items-center justify-between gap-4 transition-colors ${
+        isDarkMode 
+          ? "border-white/10 bg-black/20 backdrop-blur-md text-white" 
+          : "border-slate-200 bg-white/95 text-slate-900 shadow-sm"
+      }`}>
         
         {/* Left: View Mode Toggle & Legend */}
         <div className="flex items-center gap-4">
-          <div className="flex bg-black/40 border border-white/15 rounded-lg p-1 text-xs font-mono backdrop-blur-md">
+          <div className={`flex border rounded-lg p-1 text-xs font-mono ${
+            isDarkMode ? "bg-black/40 border-white/15" : "bg-slate-100 border-slate-300"
+          }`}>
             <button
               onClick={() => setViewMode("timeline")}
               className={`flex items-center gap-1.5 px-3 py-1 rounded transition-colors ${
                 viewMode === "timeline"
-                  ? "bg-white/20 text-white font-bold border border-white/20 shadow-sm backdrop-blur-md"
-                  : "text-primary-muted hover:text-white"
+                  ? (isDarkMode ? "bg-white/20 text-white font-bold border border-white/20" : "bg-slate-900 text-white font-bold")
+                  : (isDarkMode ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900")
               }`}
             >
               <Clock size={13} /> Chrono Timeline
@@ -497,20 +522,36 @@ export default function TimelineViz() {
               onClick={() => setViewMode("network")}
               className={`flex items-center gap-1.5 px-3 py-1 rounded transition-colors ${
                 viewMode === "network"
-                  ? "bg-white/20 text-white font-bold border border-white/20 shadow-sm backdrop-blur-md"
-                  : "text-primary-muted hover:text-white"
+                  ? (isDarkMode ? "bg-white/20 text-white font-bold border border-white/20" : "bg-slate-900 text-white font-bold")
+                  : (isDarkMode ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900")
               }`}
             >
               <Layers size={13} /> Entity Network
             </button>
           </div>
 
+          <div className={`hidden sm:flex items-center gap-4 text-xs font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#d97706] inline-block shadow-sm"></span>
+              <span>Main Timeline</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7] inline-block shadow-sm"></span>
+              <span>Branched Timeline</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block shadow-sm"></span>
+              <span>Child Branched Timeline</span>
+            </div>
+          </div>
         </div>
 
         {/* Right: Timeline Scrubber Slider */}
-        <div className="flex items-center gap-3 bg-black/40 border border-white/15 px-3 py-1.5 rounded-lg backdrop-blur-md">
+        <div className={`flex items-center gap-3 border px-3 py-1.5 rounded-lg ${
+          isDarkMode ? "bg-black/40 border-white/15 text-slate-300" : "bg-slate-100 border-slate-300 text-slate-800"
+        }`}>
           <Sliders size={14} className="text-canon" />
-          <span className="text-xs font-mono text-primary-muted">Sequence:</span>
+          <span className="text-xs font-mono">Sequence:</span>
           <input 
             type="range"
             min={1}
@@ -537,28 +578,30 @@ export default function TimelineViz() {
 
       {/* Event Details Drawer / Inspector Card */}
       {selectedEvent && (
-        <div className="flex-none p-4 border-t border-white/10 bg-black/35 backdrop-blur-xl flex flex-col gap-2">
+        <div className={`flex-none p-4 border-t flex flex-col gap-2 transition-colors ${
+          isDarkMode ? "border-white/10 bg-black/35 text-white" : "border-slate-200 bg-white/95 text-slate-900 shadow-md"
+        }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border uppercase ${
                 selectedEvent.canonical
-                  ? 'bg-canon/10 text-canon border-canon/30'
-                  : 'bg-generated/10 text-generated border-generated/30'
+                  ? (isDarkMode ? 'bg-canon/10 text-canon border-canon/30' : 'bg-amber-100 text-amber-800 border-amber-300')
+                  : (isDarkMode ? 'bg-generated/10 text-generated border-generated/30' : 'bg-purple-100 text-purple-800 border-purple-300')
               }`}>
                 SEQ {selectedEvent.sequence} • {selectedEvent.canonical ? 'CANON BEAT' : 'DIVERGENT OUTCOME'}
               </span>
-              <h3 className="font-serif font-bold text-sm text-primary">{selectedEvent.title}</h3>
+              <h3 className="font-serif font-bold text-sm">{selectedEvent.title}</h3>
             </div>
             
             {selectedEvent.participants.length > 0 && (
-              <div className="flex items-center gap-1.5 text-xs font-mono text-primary-muted">
-                <Users size={13} className="text-primary-muted" />
+              <div className={`flex items-center gap-1.5 text-xs font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                <Users size={13} />
                 <span>{selectedEvent.participants.map(p => p.replace(/_/g, " ")).join(", ")}</span>
               </div>
             )}
           </div>
 
-          <p className="text-xs font-serif text-primary-muted leading-relaxed line-clamp-2">
+          <p className={`text-xs font-serif leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
             {selectedEvent.description}
           </p>
         </div>

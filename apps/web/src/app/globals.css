@@ -25,16 +25,16 @@
   --background: #f8fafc;
   --foreground: #0f172a;
 
-  --panel: rgba(255, 255, 255, 0.75);
-  --panel-border: rgba(0, 0, 0, 0.12);
+  --panel: #ffffff;
+  --panel-border: #e2e8f0;
 
-  --border: rgba(0, 0, 0, 0.15);
+  --border: #cbd5e1;
 
   --primary: #0f172a;
   --primary-muted: #475569;
 
   --canon: #d97706;
-  --generated: #9333ea;
+  --generated: #7e22ce;
   --fandom: #0d9488;
 
   --danger: #e11d48;
@@ -45,7 +45,39 @@ body {
   background: var(--background);
   font-family: var(--font-inter), sans-serif;
   overflow-x: hidden;
-  transition: background-color 0.4s ease, color 0.4s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode overrides for clean high-contrast readability */
+.light-mode .app-header {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-mode .app-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-mode .app-input {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-mode .app-btn-secondary {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+.light-mode .app-btn-secondary:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 /* The WebGL renderer adds its own canvas. It is visual-only and must never

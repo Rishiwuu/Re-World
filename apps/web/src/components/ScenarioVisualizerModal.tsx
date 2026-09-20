@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
-  const { storyId, branchId, currentSequence, worldSummary } = useAppContext();
+  const { storyId, branchId, currentSequence, worldSummary, isDarkMode } = useAppContext();
 
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<"flux" | "turbo" | "anime" | "3d">("flux");
@@ -171,23 +171,25 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fade-in">
-      <div className="relative max-w-5xl w-full bg-[#0c0814]/90 border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-xl animate-fade-in ${isDarkMode ? "bg-black/80" : "bg-slate-900/40"}`}>
+      <div className={`relative max-w-5xl w-full border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${
+        isDarkMode ? "bg-[#0c0814]/90 border-white/15 text-white" : "bg-white/95 border-slate-200 text-slate-900 shadow-xl"
+      }`}>
         
         {/* Header Bar */}
-        <div className="px-6 py-4 border-b border-white/10 bg-black/40 flex items-center justify-between">
+        <div className={`px-6 py-4 border-b flex items-center justify-between ${isDarkMode ? "border-white/10 bg-black/40" : "border-slate-200 bg-slate-50"}`}>
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-purple-600 via-pink-600 to-amber-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <Sparkles size={18} className="text-white animate-pulse" />
             </div>
             <div>
-              <h2 className="font-serif font-bold text-base text-white tracking-wide flex items-center gap-2">
+              <h2 className={`font-serif font-bold text-base tracking-wide flex items-center gap-2 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
                 Scenario AI Visualizer
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase">
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30 uppercase">
                   Pollinations FLUX
                 </span>
               </h2>
-              <p className="text-xs font-mono text-primary-muted">
+              <p className={`text-xs font-mono ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}>
                 {scenarioContext.branchName} • Sequence {currentSequence}
               </p>
             </div>
@@ -195,7 +197,7 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-primary-muted hover:text-white hover:bg-white/10 transition-colors"
+            className={`p-2 rounded-xl transition-colors ${isDarkMode ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-slate-200"}`}
           >
             <X size={20} />
           </button>
@@ -208,18 +210,22 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
           <div className="lg:col-span-5 flex flex-col gap-4">
             
             {/* Scenario Auto-Fetch Badge */}
-            <div className="bg-purple-950/40 border border-purple-500/30 p-3.5 rounded-xl space-y-1.5 backdrop-blur-md">
-              <div className="flex items-center justify-between text-[11px] font-mono text-purple-300 font-bold uppercase">
+            <div className={`border p-3.5 rounded-xl space-y-1.5 backdrop-blur-md ${
+              isDarkMode 
+                ? "bg-purple-950/40 border-purple-500/30 text-purple-200" 
+                : "bg-purple-50 border-purple-200 text-purple-900"
+            }`}>
+              <div className={`flex items-center justify-between text-[11px] font-mono font-bold uppercase ${isDarkMode ? "text-purple-300" : "text-purple-800"}`}>
                 <span className="flex items-center gap-1.5"><Wand2 size={13} /> Active Scenario Context</span>
-                <span className="text-amber-400">Seq {currentSequence}</span>
+                <span className="text-amber-600 dark:text-amber-400">Seq {currentSequence}</span>
               </div>
               {scenarioContext.hypothesis && (
-                <p className="text-xs font-serif text-purple-200/90 leading-relaxed">
+                <p className={`text-xs font-serif leading-relaxed ${isDarkMode ? "text-purple-200/90" : "text-purple-950"}`}>
                   <strong>What-If Hypothesis:</strong> {scenarioContext.hypothesis}
                 </p>
               )}
               {scenarioContext.currentBeat && (
-                <p className="text-[11px] font-mono text-primary-muted truncate">
+                <p className={`text-[11px] font-mono truncate ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}>
                   {scenarioContext.currentBeat}
                 </p>
               )}
@@ -227,22 +233,26 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
 
             {/* Prompt Input */}
             <div className="space-y-1.5">
-              <label className="text-xs font-mono text-primary-muted uppercase tracking-wider flex items-center justify-between">
+              <label className={`text-xs font-mono uppercase tracking-wider flex items-center justify-between ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}>
                 <span>Scene Prompt</span>
-                <span className="text-purple-400 text-[10px]">Auto-fetched scenario</span>
+                <span className="text-purple-500 text-[10px]">Auto-fetched scenario</span>
               </label>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={4}
                 placeholder="Describe the scene vision..."
-                className="w-full bg-black/40 border border-white/15 rounded-xl p-3 text-xs font-serif text-white focus:outline-none focus:border-purple-500 transition-colors resize-none leading-relaxed"
+                className={`w-full border rounded-xl p-3 text-xs font-serif focus:outline-none focus:border-purple-500 transition-colors resize-none leading-relaxed ${
+                  isDarkMode 
+                    ? "bg-black/40 border-white/15 text-white" 
+                    : "bg-slate-50 border-slate-300 text-slate-900"
+                }`}
               />
             </div>
 
             {/* Model Profile Selector */}
             <div className="space-y-1.5">
-              <label className="text-xs font-mono text-primary-muted uppercase tracking-wider">Model Profile</label>
+              <label className={`text-xs font-mono uppercase tracking-wider ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}>Model Profile</label>
               <div className="grid grid-cols-4 gap-2">
                 {(["flux", "turbo", "anime", "3d"] as const).map((m) => (
                   <button
@@ -251,8 +261,10 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
                     onClick={() => setModel(m)}
                     className={`py-2 rounded-lg text-xs font-mono capitalize transition-all border ${
                       model === m
-                        ? "bg-purple-600/30 border-purple-400 text-white font-bold shadow-md"
-                        : "bg-white/5 border-white/10 text-primary-muted hover:text-white hover:bg-white/10"
+                        ? "bg-purple-600/30 border-purple-500 text-purple-700 dark:text-white font-bold shadow-sm"
+                        : isDarkMode
+                        ? "bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10"
+                        : "bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-200"
                     }`}
                   >
                     {m}
@@ -263,7 +275,7 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
 
             {/* Aspect Ratio Selector */}
             <div className="space-y-1.5">
-              <label className="text-xs font-mono text-primary-muted uppercase tracking-wider">Aspect Ratio</label>
+              <label className={`text-xs font-mono uppercase tracking-wider ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}>Aspect Ratio</label>
               <div className="grid grid-cols-4 gap-2">
                 {(["16:9", "1:1", "9:16", "4:3"] as const).map((r) => (
                   <button
@@ -272,8 +284,10 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
                     onClick={() => setAspectRatio(r)}
                     className={`py-1.5 rounded-lg text-xs font-mono transition-all border ${
                       aspectRatio === r
-                        ? "bg-purple-600/30 border-purple-400 text-white font-bold shadow-md"
-                        : "bg-white/5 border-white/10 text-primary-muted hover:text-white hover:bg-white/10"
+                        ? "bg-purple-600/30 border-purple-500 text-purple-700 dark:text-white font-bold shadow-sm"
+                        : isDarkMode
+                        ? "bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10"
+                        : "bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-200"
                     }`}
                   >
                     {r}
@@ -283,8 +297,8 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
             </div>
 
             {/* Extra Controls: Seed & Enhancement */}
-            <div className="flex items-center justify-between bg-black/30 border border-white/10 p-3 rounded-xl">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-mono text-primary">
+            <div className={`flex items-center justify-between border p-3 rounded-xl ${isDarkMode ? "bg-black/30 border-white/10" : "bg-slate-50 border-slate-200"}`}>
+              <label className={`flex items-center gap-2 cursor-pointer text-xs font-mono ${isDarkMode ? "text-slate-300" : "text-slate-800"}`}>
                 <input
                   type="checkbox"
                   checked={enhancePrompt}
@@ -301,7 +315,7 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
                   setSeed(s);
                   setSeedLocked(true);
                 }}
-                className="text-[11px] font-mono text-purple-300 hover:underline flex items-center gap-1"
+                className="text-[11px] font-mono text-purple-600 dark:text-purple-300 hover:underline flex items-center gap-1"
               >
                 <RefreshCw size={11} /> New Seed
               </button>
@@ -322,19 +336,21 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
           </div>
 
           {/* Right Column: Viewport Stage */}
-          <div className="lg:col-span-7 flex flex-col justify-between bg-black/40 border border-white/10 rounded-xl p-4 min-h-[380px] relative">
+          <div className={`lg:col-span-7 flex flex-col justify-between border rounded-xl p-4 min-h-[380px] relative ${
+            isDarkMode ? "bg-black/40 border-white/10" : "bg-slate-50 border-slate-200"
+          }`}>
             
             {/* Viewport Display */}
             <div className="flex-1 flex items-center justify-center relative overflow-hidden rounded-lg min-h-[300px]">
               {loading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md z-10 gap-3">
+                <div className={`absolute inset-0 flex flex-col items-center justify-center backdrop-blur-md z-10 gap-3 ${isDarkMode ? "bg-black/80" : "bg-white/80"}`}>
                   <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
-                  <p className="text-xs font-mono text-purple-300 animate-pulse">Rendering neural visualization...</p>
+                  <p className="text-xs font-mono text-purple-600 dark:text-purple-300 animate-pulse">Rendering neural visualization...</p>
                 </div>
               )}
 
               {errorMsg && (
-                <div className="text-center p-6 text-xs font-serif text-danger">
+                <div className="text-center p-6 text-xs font-serif text-red-500 font-bold">
                   {errorMsg}
                 </div>
               )}
@@ -352,15 +368,15 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
                       setErrorMsg("Image synthesis timed out. Click Render Scenario Image to retry.");
                     }
                   }}
-                  className={`max-h-[360px] w-auto h-auto object-contain rounded-lg shadow-2xl border border-white/15 ${loading ? "opacity-0" : "opacity-100 transition-opacity duration-300"}`}
+                  className={`max-h-[360px] w-auto h-auto object-contain rounded-lg shadow-2xl border ${isDarkMode ? "border-white/15" : "border-slate-300"} ${loading ? "opacity-0" : "opacity-100 transition-opacity duration-300"}`}
                 />
               )}
 
               {!imageUrl && !loading && !errorMsg && (
-                <div className="flex flex-col items-center justify-center text-center p-8 text-primary-muted">
-                  <ImageIcon size={40} className="mb-3 opacity-40 text-purple-400" />
-                  <h4 className="font-serif text-sm font-bold text-primary mb-1">Canvas Ready</h4>
-                  <p className="text-xs font-serif max-w-xs text-primary-muted">
+                <div className="flex flex-col items-center justify-center text-center p-8">
+                  <ImageIcon size={40} className="mb-3 opacity-40 text-purple-500" />
+                  <h4 className={`font-serif text-sm font-bold mb-1 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Canvas Ready</h4>
+                  <p className={`text-xs font-serif max-w-xs ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}>
                     Click <strong>Render Scenario Image</strong> above to synthesize the visual representation of this timeline branch beat.
                   </p>
                 </div>
@@ -369,21 +385,29 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
 
             {/* Action Buttons Bar */}
             {imageUrl && (
-              <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
+              <div className={`mt-4 pt-3 border-t flex flex-wrap items-center justify-between gap-2 ${isDarkMode ? "border-white/10" : "border-slate-200"}`}>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={copyPromptText}
-                    className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/15 hover:bg-white/10 text-xs font-mono text-primary flex items-center gap-1.5 transition-colors"
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-mono flex items-center gap-1.5 transition-colors ${
+                      isDarkMode 
+                        ? "bg-white/5 border-white/15 hover:bg-white/10 text-white" 
+                        : "bg-white border-slate-300 hover:bg-slate-100 text-slate-900"
+                    }`}
                   >
-                    {copiedPrompt ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                    {copiedPrompt ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
                     <span>{copiedPrompt ? "Copied Prompt" : "Copy Prompt"}</span>
                   </button>
 
                   <button
                     onClick={copyLink}
-                    className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/15 hover:bg-white/10 text-xs font-mono text-primary flex items-center gap-1.5 transition-colors"
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-mono flex items-center gap-1.5 transition-colors ${
+                      isDarkMode 
+                        ? "bg-white/5 border-white/15 hover:bg-white/10 text-white" 
+                        : "bg-white border-slate-300 hover:bg-slate-100 text-slate-900"
+                    }`}
                   >
-                    {copiedLink ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                    {copiedLink ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
                     <span>{copiedLink ? "Copied Link" : "Copy Link"}</span>
                   </button>
                 </div>

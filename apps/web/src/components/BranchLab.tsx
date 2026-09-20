@@ -7,7 +7,7 @@ import { GitBranch, Loader2, Sparkles, ArrowRight, RotateCcw, AlertTriangle } fr
 import BranchDiff from "./BranchDiff";
 
 export default function BranchLab() {
-  const { storyId, branchId, setBranchId, currentSequence, setCurrentSequence, setWorldSummary } = useAppContext();
+  const { storyId, branchId, setBranchId, currentSequence, setCurrentSequence, setWorldSummary, isDarkMode } = useAppContext();
   
   const [change, setChange] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,7 +23,6 @@ export default function BranchLab() {
 
   useEffect(() => { loadBranches(); }, [storyId, branchId]);
 
-  // When branchId changes or on mount, fetch diff if on a branch
   useEffect(() => {
     if (branchId !== "canon") {
       api.getBranchDiff(branchId)
@@ -43,13 +42,9 @@ export default function BranchLab() {
     setLoading(true);
 
     try {
-      // 1. Create branch at divergence sequence
       const res = await api.createBranch(storyId, currentSequence, query.trim(), branchId);
-      
-      // 2. Fetch diff
       const diff = await api.getBranchDiff(res.branch.id);
       
-      // 3. Update active branch & world summary
       setBranchId(res.branch.id);
       setDiffData(diff);
       setChange("");
@@ -95,11 +90,35 @@ export default function BranchLab() {
   ];
 
   const timelinePicker = branches.length > 0 && (
-    <div className="border-t border-white/10 p-3 bg-black/20 backdrop-blur-md">
-      <div className="text-[10px] font-mono uppercase tracking-wider text-primary-muted mb-2">Saved timelines</div>
+    <div className={`border-t p-3 transition-colors ${
+      isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-slate-50'
+    }`}>
+      <div className={`text-[10px] font-mono uppercase tracking-wider mb-2 font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Saved timelines</div>
       <div className="flex flex-wrap gap-2">
-        <button onClick={handleReturnToCanon} className={`text-[10px] font-mono px-2 py-1 border rounded ${branchId === "canon" ? "border-canon text-canon bg-canon/10" : "border-white/15 text-primary-muted"}`}>CANON</button>
-        {branches.map(branch => <button key={branch.id} onClick={() => selectTimeline(branch.id)} className={`text-[10px] font-mono px-2 py-1 border rounded ${branch.id === branchId ? "border-generated text-generated bg-generated/10" : "border-white/15 text-primary-muted"}`} title={branch.description}>SEQ {branch.divergence_sequence} · {branch.name.slice(0, 20)}</button>)}
+        <button 
+          onClick={handleReturnToCanon} 
+          className={`text-[10px] font-mono px-2 py-1 border rounded transition-all ${
+            branchId === "canon" 
+              ? (isDarkMode ? "border-canon text-canon bg-canon/10 font-bold" : "border-amber-500 text-amber-900 bg-amber-100 font-bold")
+              : (isDarkMode ? "border-white/15 text-slate-400 hover:text-white" : "border-slate-300 text-slate-700 hover:bg-slate-100")
+          }`}
+        >
+          CANON
+        </button>
+        {branches.map(branch => (
+          <button 
+            key={branch.id} 
+            onClick={() => selectTimeline(branch.id)} 
+            className={`text-[10px] font-mono px-2 py-1 border rounded transition-all ${
+              branch.id === branchId 
+                ? (isDarkMode ? "border-generated text-generated bg-generated/10 font-bold" : "border-purple-500 text-purple-900 bg-purple-100 font-bold")
+                : (isDarkMode ? "border-white/15 text-slate-400 hover:text-white" : "border-slate-300 text-slate-700 hover:bg-slate-100")
+            }`} 
+            title={branch.description}
+          >
+            SEQ {branch.divergence_sequence} · {branch.name.slice(0, 20)}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -108,14 +127,16 @@ export default function BranchLab() {
     return (
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
         {/* Branch Header Banner */}
-        <div className="flex-none p-3.5 border-b border-panel-border bg-generated/10 flex items-center justify-between">
+        <div className={`flex-none p-3.5 border-b flex items-center justify-between ${
+          isDarkMode ? 'border-panel-border bg-generated/10 text-white' : 'border-purple-200 bg-purple-50 text-purple-950'
+        }`}>
           <div className="flex items-center gap-2">
-            <GitBranch size={16} className="text-generated animate-pulse" />
+            <GitBranch size={16} className={`${isDarkMode ? 'text-generated' : 'text-purple-700'} animate-pulse`} />
             <div>
-              <div className="font-mono text-xs font-bold text-generated uppercase">
+              <div className={`font-mono text-xs font-bold uppercase ${isDarkMode ? 'text-generated' : 'text-purple-900'}`}>
                 Divergent Branch Active
               </div>
-              <div className="text-[10px] font-mono text-primary-muted">
+              <div className={`text-[10px] font-mono ${isDarkMode ? 'text-slate-400' : 'text-purple-700'}`}>
                 Diverged at Sequence {diffData.events_added[0]?.sequence ?? currentSequence}
               </div>
             </div>
@@ -123,7 +144,11 @@ export default function BranchLab() {
 
           <button 
             onClick={handleReturnToCanon}
-            className="flex items-center gap-1.5 text-xs font-mono border border-generated/40 text-generated hover:bg-generated/20 px-2.5 py-1.5 rounded transition-colors"
+            className={`flex items-center gap-1.5 text-xs font-mono border px-2.5 py-1.5 rounded transition-colors ${
+              isDarkMode 
+                ? "border-generated/40 text-generated hover:bg-generated/20" 
+                : "border-purple-300 text-purple-900 bg-purple-100 hover:bg-purple-200 font-semibold shadow-sm"
+            }`}
           >
             <RotateCcw size={13} />
             RETURN TO CANON
@@ -132,12 +157,15 @@ export default function BranchLab() {
 
         <button
           onClick={() => setBranchAgain(true)}
-          className="mx-4 mt-3 flex items-center justify-center gap-2 rounded border border-generated/40 bg-generated/10 px-3 py-2 text-xs font-mono text-generated hover:bg-generated/20"
+          className={`mx-4 mt-3 flex items-center justify-center gap-2 rounded border px-3 py-2 text-xs font-mono font-bold transition-all shadow-sm ${
+            isDarkMode 
+              ? "border-generated/40 bg-generated/10 text-generated hover:bg-generated/20" 
+              : "border-purple-300 bg-purple-100 text-purple-900 hover:bg-purple-200"
+          }`}
         >
           <GitBranch size={14} /> DIVERGE FROM THIS TIMELINE
         </button>
 
-        {/* Structural Diff Output */}
         <div className="flex-1 overflow-y-auto">
           <BranchDiff diff={diffData} />
         </div>
@@ -147,32 +175,40 @@ export default function BranchLab() {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto p-5 bg-transparent space-y-5">
+    <div className={`flex-1 flex flex-col h-full overflow-y-auto p-5 space-y-5 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
       
       {/* Introduction Card */}
-      <div className="bg-black/35 backdrop-blur-xl border border-white/10 rounded-xl p-4 space-y-2 shadow-lg">
-        <div className="flex items-center gap-2 text-primary font-serif font-bold text-base">
+      <div className={`border rounded-xl p-4 space-y-2 shadow-sm ${
+        isDarkMode ? 'bg-black/35 border-white/10' : 'bg-slate-50 border-slate-200'
+      }`}>
+        <div className="flex items-center gap-2 font-serif font-bold text-base">
           <GitBranch size={18} className="text-generated" />
           What-If Simulation Engine
         </div>
-        <p className="text-xs font-serif text-primary-muted leading-relaxed">
-          Inject an alternate premise at <strong>Sequence {currentSequence}</strong>. The framework creates an isolated child timeline and rewrites the downstream story without modifying its parent.
+        <p className={`text-xs font-serif leading-relaxed ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+          Inject an alternate premise at <strong>Sequence {currentSequence}</strong>. The framework creates an isolated child timeline and rewrites downstream events without modifying canon.
         </p>
       </div>
 
       {/* Divergence Form */}
       <form onSubmit={handleSimulate} className="space-y-3">
         <div className="space-y-1.5">
-          <label className="text-xs font-mono text-primary-muted uppercase tracking-wider flex items-center justify-between">
+          <label className={`text-xs font-mono uppercase tracking-wider flex items-center justify-between ${
+            isDarkMode ? 'text-slate-400' : 'text-slate-700 font-bold'
+          }`}>
             <span>Hypothesis Statement</span>
-            <span className="text-generated font-bold">Divergence Point: Seq {currentSequence}</span>
+            <span className="text-generated font-bold">Seq {currentSequence}</span>
           </label>
           <textarea
             value={change}
             onChange={e => setChange(e.target.value)}
-            placeholder="e.g. What if Evelyn confessed everything to Detective Hale immediately during the initial questioning?"
+            placeholder="e.g. What if Evelyn confessed everything to Detective Hale immediately during initial questioning?"
             rows={4}
-            className="w-full bg-background border border-border rounded-lg p-3 text-xs sm:text-sm font-serif text-primary focus:outline-none focus:border-generated transition-colors resize-none leading-relaxed"
+            className={`w-full border rounded-lg p-3 text-xs sm:text-sm font-serif transition-colors resize-none leading-relaxed ${
+              isDarkMode 
+                ? "bg-black/40 border-white/15 text-white focus:border-generated" 
+                : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-purple-600 shadow-inner"
+            }`}
           />
         </div>
 
@@ -186,7 +222,7 @@ export default function BranchLab() {
         <button
           type="submit"
           disabled={!change.trim() || loading}
-          className="w-full bg-generated text-white font-mono text-xs uppercase font-bold py-2.5 px-4 rounded-lg hover:bg-violet-600 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md"
+          className="w-full bg-purple-700 hover:bg-purple-800 text-white font-mono text-xs uppercase font-bold py-2.5 px-4 rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md"
         >
           {loading ? (
             <><Loader2 size={15} className="animate-spin" /> Simulating Ripple Consequences...</>
@@ -198,7 +234,7 @@ export default function BranchLab() {
 
       {/* Preset Ideas */}
       <div className="space-y-2">
-        <div className="text-[10px] font-mono uppercase tracking-wider text-primary-muted">
+        <div className={`text-[10px] font-mono uppercase tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-600 font-bold'}`}>
           Preset Divergence Ideas
         </div>
         <div className="space-y-2">
@@ -207,10 +243,14 @@ export default function BranchLab() {
               key={i}
               onClick={() => handleSimulate(undefined, idea)}
               disabled={loading}
-              className="w-full text-left p-2.5 bg-background border border-border rounded-lg text-xs font-serif text-primary hover:border-generated hover:bg-generated/5 transition-all flex items-center justify-between group"
+              className={`w-full text-left p-2.5 border rounded-lg text-xs font-serif transition-all flex items-center justify-between group ${
+                isDarkMode 
+                  ? "bg-black/20 border-white/10 text-white hover:border-generated hover:bg-generated/5" 
+                  : "bg-white border-slate-200 text-slate-800 hover:border-purple-400 hover:bg-purple-50 shadow-sm"
+              }`}
             >
               <span>“{idea}”</span>
-              <ArrowRight size={13} className="text-primary-muted group-hover:text-generated transition-colors shrink-0 ml-2" />
+              <ArrowRight size={13} className="text-slate-400 group-hover:text-purple-600 transition-colors shrink-0 ml-2" />
             </button>
           ))}
         </div>
