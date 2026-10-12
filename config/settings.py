@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Credentials belong in .env (or the process environment), never in source.
     gemini_api_key: str = ""
     # Standard Gemini model for story generation and agentic reasoning.
-    llm_model: str = "gemini-3.6-flash"
+    llm_model: str = "gemini-3.8-flash"
 
 
 

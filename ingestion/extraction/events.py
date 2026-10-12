@@ -16,26 +16,33 @@ def extract_events(
 ) -> list[Event]:
     """
     Extract sequential chronological plot events using Gemini LLM
-    with a deterministic fallback.
+    with a deterministic fallback that partitions story text into distinct scene beats.
     """
     events: list[Event] = []
     char_list = characters or []
 
-    # Try LLM extraction first
+    # 1. Try LLM extraction first
     try:
-        if os.getenv("USE_LLM_INGESTION", "false").lower() != "true":
-            raise RuntimeError("LLM ingestion disabled; using fast local extraction")
         from config.llm import get_llm
         llm = get_llm()
         if llm:
-            prompt = f"""You are an expert narrative analyst. Extract 4 to 12 key sequential chronological events from the following story text.
-Return ONLY a valid JSON array of objects with the following schema:
+            prompt = f"""You are an expert narrative architect.
+Break down the following story into 4 to 12 distinct, chronological sequence beats (scenes/events).
+
+CRITICAL REQUIREMENTS:
+1. Each sequence beat MUST represent a DIFFERENT, PROGRESSIVE part of the story (e.g., Sequence 1 = Opening/Inciting Incident, Sequence 2 = Investigation/Rising Action, Sequence 3 = Turning Point/Crisis, Sequence 4 = Climax, Sequence 5 = Resolution).
+2. DO NOT output the whole story in a single sequence, and DO NOT repeat the same story across multiple sequences.
+3. The description for each beat MUST ONLY describe the specific actions and revelations that occur in that particular sequence beat (2-4 sentences).
+4. Provide a dramatic, specific title for each beat (under 60 chars).
+5. List the character IDs/names who actually participate or appear in that beat.
+
+Schema (return ONLY a valid JSON array):
 [
   {{
     "sequence": 1,
-    "title": "Short event title (under 50 chars)",
-    "description": "2-3 sentences describing the event beat",
-    "participants": ["character_id_or_name"],
+    "title": "Dramatic Beat Title",
+    "description": "Specific narrative description of what happens only in this scene beat.",
+    "participants": ["character_name_or_id"],
     "event_type": "plot"
   }}
 ]
@@ -43,7 +50,7 @@ Return ONLY a valid JSON array of objects with the following schema:
 Available Characters: {json.dumps(char_list)}
 
 Story Text:
-{text[:4500]}
+{text[:9000]}
 """
             response = llm.invoke(prompt)
             content = response.content
@@ -62,76 +69,125 @@ Story Text:
             if json_match:
                 parsed = json.loads(json_match.group(0))
                 for index, item in enumerate(parsed):
-                    seq = index + 1
+                    seq = int(item.get("sequence", index + 1))
                     event_id = f"{story_id}_event_{seq}"
                     participants = [
                         re.sub(r"[^a-z0-9]+", "_", str(p).lower()).strip("_")
                         for p in item.get("participants", [])
                     ]
-                    events.append(
-                        Event(
-                            id=event_id,
-                            story_id=story_id,
-                            title=item.get("title", f"Event {seq}")[:80],
-                            description=item.get("description", ""),
-                            sequence=seq,
-                            event_type=EventType.PLOT,
-                            participants=[p for p in participants if p],
+                    desc = str(item.get("description", "")).strip()
+                    title = str(item.get("title", f"Sequence {seq}")).strip()
+                    if desc:
+                        events.append(
+                            Event(
+                                id=event_id,
+                                story_id=story_id,
+                                title=title[:80],
+                                description=desc,
+                                sequence=seq,
+                                event_type=EventType.PLOT,
+                                participants=[p for p in participants if p],
+                            )
                         )
-                    )
-                if events:
-                    logger.info(f"LLM successfully extracted {len(events)} events.")
-                    return events
+                if len(events) >= 2:
+                    logger.info(f"LLM successfully extracted {len(events)} distinct sequence beats.")
+                    return sorted(events, key=lambda e: e.sequence)
     except Exception as e:
-        logger.warning(f"LLM event extraction skipped: {e}")
+        logger.warning(f"LLM event extraction fallback activated: {e}")
 
-    # Fallback: every uploaded story is segmented into chronological beats.
-    # Paragraphs are presentation, not chronology: a whole story is commonly
-    # pasted as one paragraph.  Sentences are therefore the primary boundary.
-    sentences = [
-        sentence.strip()
-        for sentence in re.split(r"(?<=[.!?])\s+|\n+(?=[A-Z])", text)
-        if sentence.strip()
+    # 2. Deterministic Fallback: Partition the story into distinct chronological narrative beats
+    # Protect common abbreviations from being split as sentence boundaries
+    protected_text = text
+    abbreviations = ["Dr.", "Mr.", "Mrs.", "Ms.", "Prof.", "Capt.", "Lt.", "Sgt.", "St.", "vs.", "e.g.", "i.e."]
+    for abbr in abbreviations:
+        placeholder = abbr.replace(".", "___DOT___")
+        protected_text = protected_text.replace(abbr, placeholder)
+
+    # Step A: Split into natural paragraphs or sentence groups
+    raw_paras = [p.strip() for p in re.split(r"\n\s*\n|\r\n\s*\r\n", protected_text) if p.strip()]
+
+    all_sentences = []
+    if len(raw_paras) >= 4:
+        story_chunks = [p.replace("___DOT___", ".") for p in raw_paras]
+    else:
+        for para in raw_paras if raw_paras else [protected_text]:
+            sents = [s.strip() for s in re.split(r"(?<=[.!?])(?:\s+|\n+)|\n+(?=[A-Z0-9\"'“‘])", para) if s.strip()]
+            all_sentences.extend(sents)
+
+        # Restore dots and merge any fragments under 20 chars
+        clean_sentences = []
+        for s in all_sentences:
+            s_restored = s.replace("___DOT___", ".")
+            if clean_sentences and len(clean_sentences[-1]) < 25:
+                clean_sentences[-1] = clean_sentences[-1] + " " + s_restored
+            else:
+                clean_sentences.append(s_restored)
+
+        # If text lacked standard punctuation, divide into readable 35-word windows
+        if len(clean_sentences) <= 1:
+            words = text.split()
+            window = 35
+            clean_sentences = [" ".join(words[i:i + window]) for i in range(0, len(words), window) if words[i:i + window]]
+
+        total_sents = len(clean_sentences)
+        if total_sents <= 6:
+            story_chunks = clean_sentences
+        else:
+            num_chunks = min(12, max(4, (total_sents + 1) // 2))
+            chunk_size = max(1, (total_sents + num_chunks - 1) // num_chunks)
+            story_chunks = [
+                " ".join(clean_sentences[i:i + chunk_size])
+                for i in range(0, total_sents, chunk_size)
+                if " ".join(clean_sentences[i:i + chunk_size]).strip()
+            ]
+
+    # Narrative phase labels for contextual titles
+    phase_labels = [
+        "Prologue & Opening",
+        "Inciting Incident",
+        "Initial Investigation",
+        "Rising Complications",
+        "Pivotal Discovery",
+        "Hidden Confrontation",
+        "Crisis & Climax",
+        "Falling Action",
+        "Resolution & Truth",
+        "Epilogue",
+        "Aftermath",
+        "Closing Record",
     ]
-    # A source without normal punctuation is divided into readable windows.
-    if len(sentences) <= 1:
-        words = text.split()
-        window = 45
-        sentences = [" ".join(words[i:i + window]) for i in range(0, len(words), window)]
 
-    # One beat per sentence up to twelve points; longer stories are grouped
-    # evenly so the timeline remains legible but never collapses to one point.
-    chunk_size = max(1, (len(sentences) + 11) // 12)
-    paragraphs = [
-        " ".join(sentences[i:i + chunk_size])
-        for i in range(0, len(sentences), chunk_size)
-        if " ".join(sentences[i:i + chunk_size]).strip()
-    ]
-
-    for index, paragraph in enumerate(paragraphs[:15]):
+    for index, chunk in enumerate(story_chunks[:12]):
         seq = index + 1
         event_id = f"{story_id}_event_{seq}"
 
-        first_sentence = paragraph.split(".")[0].strip()
-        title = first_sentence[:60] if first_sentence else f"Event {seq}"
+        # Build a distinct descriptive title from the chunk
+        first_sentence = chunk.split(".")[0].strip()
+        first_words = " ".join(first_sentence.split()[:8])
+        phase = phase_labels[min(index, len(phase_labels) - 1)]
 
-        # Match participants by checking if character ids/names occur in the paragraph
+        if first_words and len(first_words) > 10:
+            title = f"{phase}: {first_words}"
+        else:
+            title = f"{phase} (Beat {seq})"
+
+        # Identify participants mentioned in this specific chunk
         participants = []
-        lowered_para = paragraph.lower()
+        lowered_chunk = chunk.lower()
         for cid in char_list:
             clean_name = cid.replace("_", " ")
-            if clean_name in lowered_para or cid in lowered_para:
+            if clean_name in lowered_chunk or cid in lowered_chunk:
                 participants.append(cid)
 
         events.append(
             Event(
                 id=event_id,
                 story_id=story_id,
-                title=title,
-                description=paragraph,
+                title=title[:80],
+                description=chunk,
                 sequence=seq,
                 event_type=EventType.PLOT,
-                participants=participants,
+                participants=participants if participants else (char_list[:2] if char_list else []),
             )
         )
 

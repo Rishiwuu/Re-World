@@ -22,9 +22,9 @@ const config: Config = {
         danger: "var(--danger)",
       },
       fontFamily: {
-        sans: ['var(--font-inter)', 'sans-serif'],
+        sans: ['"Candara"', '"Candara Light"', '"Optima"', 'var(--font-sans)', '"Segoe UI"', 'sans-serif'],
         mono: ['var(--font-jetbrains)', 'monospace'],
-        serif: ['var(--font-newsreader)', 'serif'],
+        serif: ['"Candara"', 'var(--font-serif)', 'serif'],
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',

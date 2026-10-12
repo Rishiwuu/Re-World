@@ -22,8 +22,6 @@ def extract_relationships(
 
     # Try LLM extraction
     try:
-        if os.getenv("USE_LLM_INGESTION", "false").lower() != "true":
-            raise RuntimeError("LLM ingestion disabled; using fast local extraction")
         from config.llm import get_llm
         llm = get_llm()
         if llm:

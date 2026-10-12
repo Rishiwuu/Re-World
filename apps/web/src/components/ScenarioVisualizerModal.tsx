@@ -53,16 +53,17 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
 
         // If in an alternate What-If branch, fetch branch hypothesis premise
         if (branchId !== "canon") {
-          const diff: BranchDiffResponse = await api.getBranchDiff(branchId).catch(() => ({
+          const diff: Partial<BranchDiffResponse> = await api.getBranchDiff(branchId).catch(() => ({
             branch_id: branchId,
             events_added: [],
-            events_modified: [],
+            events_changed: [],
             events_removed: [],
+            characters_affected: [],
             facts_added: [],
             facts_invalidated: []
           }));
-          if (diff.events_added.length > 0) {
-            hypothesis = diff.events_added[0].title || diff.events_added[0].description;
+          if (diff.events_added && diff.events_added.length > 0) {
+            hypothesis = diff.events_added[0].title || diff.events_added[0].branch_description || "";
           }
           const branches = await api.listBranches(storyId).catch(() => []);
           const bMatch = branches.find(b => b.id === branchId);
@@ -259,7 +260,7 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
                     key={m}
                     type="button"
                     onClick={() => setModel(m)}
-                    className={`py-2 rounded-lg text-xs font-mono capitalize transition-all border ${
+                    className={`py-2 rounded-lg text-xs font-mono capitalize transition-all border cursor-whatif ${
                       model === m
                         ? "bg-purple-600/30 border-purple-500 text-purple-700 dark:text-white font-bold shadow-sm"
                         : isDarkMode
@@ -282,7 +283,7 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
                     key={r}
                     type="button"
                     onClick={() => setAspectRatio(r)}
-                    className={`py-1.5 rounded-lg text-xs font-mono transition-all border ${
+                    className={`py-1.5 rounded-lg text-xs font-mono transition-all border cursor-whatif ${
                       aspectRatio === r
                         ? "bg-purple-600/30 border-purple-500 text-purple-700 dark:text-white font-bold shadow-sm"
                         : isDarkMode
@@ -315,7 +316,7 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
                   setSeed(s);
                   setSeedLocked(true);
                 }}
-                className="text-[11px] font-mono text-purple-600 dark:text-purple-300 hover:underline flex items-center gap-1"
+                className="text-[11px] font-mono text-purple-600 dark:text-purple-300 hover:underline flex items-center gap-1 cursor-whatif"
               >
                 <RefreshCw size={11} /> New Seed
               </button>
@@ -325,7 +326,7 @@ export default function ScenarioVisualizerModal({ isOpen, onClose }: Props) {
             <button
               onClick={handleGenerate}
               disabled={loading || !prompt.trim()}
-              className="w-full py-3 rounded-xl font-mono uppercase text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 disabled:opacity-50 transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 rounded-xl font-mono uppercase text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 disabled:opacity-50 transition-all shadow-lg flex items-center justify-center gap-2 cursor-whatif"
             >
               {loading ? (
                 <><RefreshCw className="animate-spin" size={15} /> Synthesizing Scene...</>

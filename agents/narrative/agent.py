@@ -61,7 +61,7 @@ class NarrativeAgent:
         divergence_event = Event(
             id=f"branch_{branch.id[:8]}_divergence",
             story_id=request.story_id,
-            title=f"Divergence: {request.change[:80]}",
+            title=f"{request.change[:80]}",
             description=f"In this alternate timeline: {request.change}",
             sequence=request.sequence,
             event_type=EventType.PLOT,

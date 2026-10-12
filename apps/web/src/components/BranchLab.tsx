@@ -90,17 +90,17 @@ export default function BranchLab() {
   ];
 
   const timelinePicker = branches.length > 0 && (
-    <div className={`border-t p-3 transition-colors ${
-      isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-slate-50'
+    <div className={`border-t p-3 transition-colors backdrop-blur-md ${
+      isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200/80 bg-white/40'
     }`}>
       <div className={`text-[10px] font-mono uppercase tracking-wider mb-2 font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Saved timelines</div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         <button 
           onClick={handleReturnToCanon} 
-          className={`text-[10px] font-mono px-2 py-1 border rounded transition-all ${
+          className={`text-[10px] font-mono px-2.5 py-1 border rounded-lg transition-all backdrop-blur-md cursor-timeline ${
             branchId === "canon" 
-              ? (isDarkMode ? "border-canon text-canon bg-canon/10 font-bold" : "border-amber-500 text-amber-900 bg-amber-100 font-bold")
-              : (isDarkMode ? "border-white/15 text-slate-400 hover:text-white" : "border-slate-300 text-slate-700 hover:bg-slate-100")
+              ? (isDarkMode ? "border-canon text-canon bg-canon/10 font-bold shadow-sm" : "border-amber-500 text-amber-900 bg-amber-100 font-bold shadow-sm")
+              : (isDarkMode ? "border-white/15 text-slate-400 hover:text-white bg-white/5" : "border-slate-200 text-slate-700 bg-white/70 hover:bg-slate-100 shadow-sm")
           }`}
         >
           CANON
@@ -109,10 +109,10 @@ export default function BranchLab() {
           <button 
             key={branch.id} 
             onClick={() => selectTimeline(branch.id)} 
-            className={`text-[10px] font-mono px-2 py-1 border rounded transition-all ${
+            className={`text-[10px] font-mono px-2.5 py-1 border rounded-lg transition-all backdrop-blur-md cursor-branch ${
               branch.id === branchId 
-                ? (isDarkMode ? "border-generated text-generated bg-generated/10 font-bold" : "border-purple-500 text-purple-900 bg-purple-100 font-bold")
-                : (isDarkMode ? "border-white/15 text-slate-400 hover:text-white" : "border-slate-300 text-slate-700 hover:bg-slate-100")
+                ? (isDarkMode ? "border-generated text-generated bg-generated/15 font-bold shadow-sm" : "border-purple-500 text-purple-900 bg-purple-100 font-bold shadow-sm")
+                : (isDarkMode ? "border-white/15 text-slate-400 hover:text-white bg-white/5" : "border-slate-200 text-slate-700 bg-white/70 hover:bg-slate-100 shadow-sm")
             }`} 
             title={branch.description}
           >
@@ -127,8 +127,8 @@ export default function BranchLab() {
     return (
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
         {/* Branch Header Banner */}
-        <div className={`flex-none p-3.5 border-b flex items-center justify-between ${
-          isDarkMode ? 'border-panel-border bg-generated/10 text-white' : 'border-purple-200 bg-purple-50 text-purple-950'
+        <div className={`flex-none p-3.5 border-b flex items-center justify-between backdrop-blur-md ${
+          isDarkMode ? 'border-white/10 bg-purple-500/10 text-white' : 'border-purple-200 bg-purple-50/80 text-purple-950'
         }`}>
           <div className="flex items-center gap-2">
             <GitBranch size={16} className={`${isDarkMode ? 'text-generated' : 'text-purple-700'} animate-pulse`} />
@@ -144,9 +144,9 @@ export default function BranchLab() {
 
           <button 
             onClick={handleReturnToCanon}
-            className={`flex items-center gap-1.5 text-xs font-mono border px-2.5 py-1.5 rounded transition-colors ${
+            className={`flex items-center gap-1.5 text-xs font-mono border px-2.5 py-1.5 rounded-xl transition-colors backdrop-blur-md cursor-timeline ${
               isDarkMode 
-                ? "border-generated/40 text-generated hover:bg-generated/20" 
+                ? "border-generated/40 text-generated hover:bg-generated/20 bg-generated/10" 
                 : "border-purple-300 text-purple-900 bg-purple-100 hover:bg-purple-200 font-semibold shadow-sm"
             }`}
           >
@@ -157,10 +157,10 @@ export default function BranchLab() {
 
         <button
           onClick={() => setBranchAgain(true)}
-          className={`mx-4 mt-3 flex items-center justify-center gap-2 rounded border px-3 py-2 text-xs font-mono font-bold transition-all shadow-sm ${
+          className={`mx-4 mt-3 flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-mono font-bold transition-all shadow-sm backdrop-blur-md cursor-branch ${
             isDarkMode 
-              ? "border-generated/40 bg-generated/10 text-generated hover:bg-generated/20" 
-              : "border-purple-300 bg-purple-100 text-purple-900 hover:bg-purple-200"
+              ? "border-generated/40 bg-generated/15 text-generated hover:bg-generated/25" 
+              : "border-purple-300 bg-purple-100/90 text-purple-900 hover:bg-purple-200"
           }`}
         >
           <GitBranch size={14} /> DIVERGE FROM THIS TIMELINE
@@ -175,14 +175,14 @@ export default function BranchLab() {
   }
 
   return (
-    <div className={`flex-1 flex flex-col h-full overflow-y-auto p-5 space-y-5 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+    <div className={`flex-1 flex flex-col h-full overflow-y-auto p-4 space-y-4 bg-transparent ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
       
       {/* Introduction Card */}
-      <div className={`border rounded-xl p-4 space-y-2 shadow-sm ${
-        isDarkMode ? 'bg-black/35 border-white/10' : 'bg-slate-50 border-slate-200'
+      <div className={`border rounded-2xl p-3.5 space-y-1.5 backdrop-blur-md shadow-sm ${
+        isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white/60 border-slate-200/80'
       }`}>
-        <div className="flex items-center gap-2 font-serif font-bold text-base">
-          <GitBranch size={18} className="text-generated" />
+        <div className="flex items-center gap-2 font-serif font-bold text-sm">
+          <GitBranch size={16} className="text-generated" />
           What-If Simulation Engine
         </div>
         <p className={`text-xs font-serif leading-relaxed ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -204,16 +204,16 @@ export default function BranchLab() {
             onChange={e => setChange(e.target.value)}
             placeholder="e.g. What if Evelyn confessed everything to Detective Hale immediately during initial questioning?"
             rows={4}
-            className={`w-full border rounded-lg p-3 text-xs sm:text-sm font-serif transition-colors resize-none leading-relaxed ${
+            className={`w-full border rounded-xl p-3 text-xs sm:text-sm font-serif transition-colors resize-none leading-relaxed backdrop-blur-md ${
               isDarkMode 
-                ? "bg-black/40 border-white/15 text-white focus:border-generated" 
-                : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-purple-600 shadow-inner"
+                ? "bg-black/30 border-white/15 text-white placeholder:text-slate-500 focus:border-generated" 
+                : "bg-white/80 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-purple-600 shadow-sm"
             }`}
           />
         </div>
 
         {errorMsg && (
-          <div className="p-2.5 bg-danger/10 border border-danger/30 text-danger rounded text-xs font-serif flex items-center gap-2">
+          <div className="p-2.5 bg-danger/10 border border-danger/30 text-danger rounded-xl text-xs font-serif flex items-center gap-2">
             <AlertTriangle size={14} className="shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -222,7 +222,7 @@ export default function BranchLab() {
         <button
           type="submit"
           disabled={!change.trim() || loading}
-          className="w-full bg-purple-700 hover:bg-purple-800 text-white font-mono text-xs uppercase font-bold py-2.5 px-4 rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md"
+          className="w-full bg-purple-700 hover:bg-purple-800 text-white font-mono text-xs uppercase font-bold py-2.5 px-4 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md cursor-whatif"
         >
           {loading ? (
             <><Loader2 size={15} className="animate-spin" /> Simulating Ripple Consequences...</>
@@ -243,10 +243,10 @@ export default function BranchLab() {
               key={i}
               onClick={() => handleSimulate(undefined, idea)}
               disabled={loading}
-              className={`w-full text-left p-2.5 border rounded-lg text-xs font-serif transition-all flex items-center justify-between group ${
+              className={`w-full text-left p-2.5 border rounded-xl text-xs font-serif transition-all flex items-center justify-between group backdrop-blur-md cursor-whatif ${
                 isDarkMode 
-                  ? "bg-black/20 border-white/10 text-white hover:border-generated hover:bg-generated/5" 
-                  : "bg-white border-slate-200 text-slate-800 hover:border-purple-400 hover:bg-purple-50 shadow-sm"
+                  ? "bg-white/[0.03] border-white/10 text-white hover:border-generated hover:bg-generated/5" 
+                  : "bg-white/70 border-slate-200/80 text-slate-800 hover:border-purple-400 hover:bg-purple-50 shadow-sm"
               }`}
             >
               <span>“{idea}”</span>

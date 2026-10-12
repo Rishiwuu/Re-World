@@ -134,34 +134,34 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
 
   if (!selectedCharacterId || !character) {
     return (
-      <div className={`flex-1 flex flex-col overflow-hidden p-5 ${isDarkMode ? 'bg-panel/30 text-white' : 'bg-white text-slate-900'}`}>
-        <div className={`flex items-center justify-between mb-4 border-b pb-3 ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
+      <div className="flex-1 flex flex-col overflow-hidden p-4 bg-transparent text-foreground">
+        <div className={`flex items-center justify-between mb-3 border-b pb-3 ${isDarkMode ? 'border-white/10' : 'border-slate-200/80'}`}>
           <div>
-            <h3 className="font-serif text-base font-bold">Dossier Registry</h3>
+            <h3 className="font-serif text-sm font-bold tracking-wide">Dossier Registry</h3>
             <p className={`text-[11px] font-mono ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Select an entity to interrogate or inspect</p>
           </div>
-          <span className={`text-xs font-mono px-2 py-1 rounded border ${isDarkMode ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-slate-100 border-slate-300 text-slate-700'}`}>
+          <span className={`text-[11px] font-mono px-2 py-0.5 rounded-lg border backdrop-blur-md cursor-dossier ${isDarkMode ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-white/70 border-slate-200 text-slate-700 shadow-sm'}`}>
             {characters.length} Subjects
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
           {characters.map(c => (
             <button
               key={c.id}
               onClick={() => setSelectedCharacterId(c.id)}
-              className={`w-full text-left p-3.5 border rounded-lg transition-all group shadow-sm flex flex-col gap-1.5 ${
+              className={`w-full text-left p-3 border rounded-xl transition-all group backdrop-blur-md flex flex-col gap-1.5 shadow-sm cursor-character ${
                 isDarkMode 
-                  ? "bg-black/20 border-white/10 hover:border-canon/60 hover:bg-canon/5 text-white" 
-                  : "bg-slate-50 border-slate-200 hover:border-amber-500 hover:bg-amber-50/60 text-slate-900"
+                  ? "bg-white/[0.03] border-white/10 hover:border-canon/60 hover:bg-canon/5 text-white" 
+                  : "bg-white/60 border-slate-200/80 hover:border-amber-500 hover:bg-amber-50/80 text-slate-900"
               }`}
             >
               <div className="flex items-center justify-between">
                 <span className="font-serif font-bold text-sm group-hover:text-canon transition-colors">
                   {c.name}
                 </span>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded border uppercase ${
-                  c.alive ? 'bg-canon/10 text-canon border-canon/30' : 'bg-danger/10 text-danger border-danger/30'
+                <span className={`text-[9px] font-mono px-2 py-0.5 rounded-md border uppercase font-semibold ${
+                  c.alive ? 'bg-canon/10 text-canon border-canon/30' : 'bg-danger/10 text-danger border-danger/30 cursor-contradiction'
                 }`}>
                   {c.alive ? "Active" : "Deceased"}
                 </span>
@@ -183,24 +183,24 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
   ];
 
   return (
-    <div className={`flex-1 flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-panel/30 text-white' : 'bg-white text-slate-900'}`}>
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent text-foreground">
       
       {/* Subject Header */}
-      <div className={`flex-none px-4 py-3 border-b flex items-center justify-between ${
-        isDarkMode ? 'border-white/10 bg-black/20 text-white' : 'border-slate-200 bg-slate-50 text-slate-900'
+      <div className={`flex-none px-3.5 py-2.5 border-b flex items-center justify-between backdrop-blur-md ${
+        isDarkMode ? 'border-white/10 bg-black/20 text-white' : 'border-slate-200/80 bg-white/40 text-slate-900'
       }`}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => setSelectedCharacterId(null)}
-            className={`p-1 rounded transition-colors ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'}`}
+            className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'}`}
             title="Back to subject list"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={15} />
           </button>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-serif font-bold text-sm">{character.name}</h3>
-              <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border uppercase ${
+              <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border uppercase font-semibold ${
                 character.alive ? 'text-canon border-canon/30 bg-canon/5' : 'text-danger border-danger/30 bg-danger/5'
               }`}>
                 {character.alive ? "Alive" : "Deceased"}
@@ -218,10 +218,10 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowFacts(!showFacts)}
-            className={`text-[10px] font-mono border px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
+            className={`text-[10px] font-mono border px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all backdrop-blur-md cursor-dossier ${
               showFacts
-                ? (isDarkMode ? "bg-amber-500/25 text-amber-300 border-amber-400/50 font-bold" : "bg-amber-100 text-amber-900 border-amber-400 font-bold")
-                : (isDarkMode ? "border-amber-400/30 text-amber-300/90 hover:bg-amber-500/15" : "border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100")
+                ? (isDarkMode ? "bg-amber-500/25 text-amber-300 border-amber-400/50 font-bold" : "bg-amber-100 text-amber-900 border-amber-400 font-bold shadow-sm")
+                : (isDarkMode ? "border-amber-400/30 text-amber-300/90 hover:bg-amber-500/15" : "border-amber-300 text-amber-800 bg-white/70 hover:bg-amber-50 shadow-sm")
             }`}
           >
             <Brain size={12} />
@@ -232,18 +232,18 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
 
       {/* Quick Character Chat Switcher Bar */}
       {characters.length > 1 && (
-        <div className={`flex-none px-4 py-2 border-b flex items-center gap-2 overflow-x-auto ${
-          isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-slate-100/70'
+        <div className={`flex-none px-3.5 py-1.5 border-b flex items-center gap-1.5 overflow-x-auto backdrop-blur-md ${
+          isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200/80 bg-white/30'
         }`}>
-          <span className={`text-[10px] font-mono shrink-0 uppercase tracking-wider font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Switch Character:</span>
+          <span className={`text-[10px] font-mono shrink-0 uppercase tracking-wider font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Switch:</span>
           {characters.map(c => (
             <button
               key={c.id}
               onClick={() => setSelectedCharacterId(c.id)}
-              className={`text-[11px] font-mono px-2.5 py-1 rounded-full shrink-0 transition-all ${
+              className={`text-[11px] font-mono px-2.5 py-0.5 rounded-full shrink-0 transition-all cursor-character ${
                 c.id === character.id
-                  ? (isDarkMode ? "bg-amber-500/25 text-amber-300 border border-amber-400/50 font-bold" : "bg-amber-600 text-white font-bold shadow-sm")
-                  : (isDarkMode ? "bg-white/5 text-slate-400 border border-white/10 hover:text-white" : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-200")
+                  ? (isDarkMode ? "bg-amber-500/25 text-amber-300 border border-amber-400/50 font-bold shadow-sm" : "bg-amber-600 text-white font-bold shadow-sm")
+                  : (isDarkMode ? "bg-white/5 text-slate-400 border border-white/10 hover:text-white" : "bg-white/70 text-slate-700 border border-slate-200 hover:bg-slate-100 shadow-sm")
               }`}
             >
               {c.name}
@@ -280,8 +280,8 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
 
       {/* Dossier Detail Mode */}
       {panelTab === "dossier" ? (
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-serif leading-relaxed">
-          <div className={`p-3.5 rounded-lg border space-y-2 ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs font-serif leading-relaxed">
+          <div className={`p-3.5 rounded-xl border space-y-2 backdrop-blur-md shadow-sm ${isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white/60 border-slate-200/80'}`}>
             <h4 className="font-mono text-[11px] font-bold uppercase flex items-center gap-1.5">
               <BookOpen size={13} className="text-canon" /> Overview
             </h4>
@@ -289,14 +289,14 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
           </div>
 
           {character.personality && character.personality.length > 0 && (
-            <div className={`p-3.5 rounded-lg border space-y-2 ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`p-3.5 rounded-xl border space-y-2 backdrop-blur-md shadow-sm ${isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white/60 border-slate-200/80'}`}>
               <h4 className="font-mono text-[11px] font-bold uppercase flex items-center gap-1.5">
                 <Heart size={13} className="text-generated" /> Personality Matrix
               </h4>
               <div className="flex flex-wrap gap-1.5">
                 {character.personality.map((trait, i) => (
-                  <span key={i} className={`px-2 py-0.5 rounded text-[11px] font-mono border ${
-                    isDarkMode ? 'bg-generated/10 border-generated/30 text-generated' : 'bg-purple-100 border-purple-300 text-purple-800 font-medium'
+                  <span key={i} className={`px-2 py-0.5 rounded-md text-[11px] font-mono border backdrop-blur-md ${
+                    isDarkMode ? 'bg-generated/10 border-generated/30 text-generated' : 'bg-purple-100/80 border-purple-300 text-purple-800 font-medium'
                   }`}>
                     {trait}
                   </span>
@@ -306,7 +306,7 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
           )}
 
           {character.goals && character.goals.length > 0 && (
-            <div className={`p-3.5 rounded-lg border space-y-2 ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`p-3.5 rounded-xl border space-y-2 backdrop-blur-md shadow-sm ${isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white/60 border-slate-200/80'}`}>
               <h4 className="font-mono text-[11px] font-bold uppercase flex items-center gap-1.5">
                 <Target size={13} className="text-fandom" /> Core Motivations & Goals
               </h4>
@@ -320,17 +320,17 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
 
           <button
             onClick={() => setPanelTab("chat")}
-            className="w-full bg-canon text-black font-mono font-bold uppercase text-xs py-2 rounded hover:bg-amber-400 transition-colors shadow-md"
+            className="w-full bg-canon text-black font-mono font-bold uppercase text-xs py-2 rounded-xl hover:bg-amber-400 transition-colors shadow-md"
           >
             Launch Interrogation Session
           </button>
         </div>
       ) : (
         /* Interactive Chat Mode */
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
           
           {/* Chat Messages Log */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3.5">
             {chatLog.length === 0 && (
               <div className={`flex flex-col items-center justify-center text-center py-6 px-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                 <Brain size={32} className="text-canon mb-2" />
@@ -346,10 +346,10 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
                     <button
                       key={idx}
                       onClick={() => handleChat(undefined, q)}
-                      className={`w-full text-left text-xs font-serif p-2.5 rounded-lg transition-all ${
+                      className={`w-full text-left text-xs font-serif p-2.5 rounded-xl transition-all backdrop-blur-md ${
                         isDarkMode 
-                          ? "bg-black/30 border border-white/10 hover:border-canon/60 text-white hover:bg-canon/5" 
-                          : "bg-white border border-slate-200 hover:border-amber-500 text-slate-800 hover:bg-amber-50 shadow-sm"
+                          ? "bg-white/[0.04] border border-white/10 hover:border-canon/60 text-white hover:bg-canon/5" 
+                          : "bg-white/70 border border-slate-200/80 hover:border-amber-500 text-slate-800 hover:bg-amber-50 shadow-sm"
                       }`}
                     >
                       “{q}”
@@ -365,10 +365,10 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
                   <span>{msg.role === "user" ? "YOU" : character.name.toUpperCase()}</span>
                   {msg.time && <span>• {msg.time}</span>}
                 </div>
-                <div className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-serif leading-relaxed max-w-[90%] shadow-md ${
+                <div className={`px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-serif leading-relaxed max-w-[90%] backdrop-blur-md shadow-md ${
                   msg.role === "user"
-                    ? (isDarkMode ? "bg-amber-500/20 text-amber-100 border border-amber-400/40 rounded-tr-none" : "bg-amber-600 text-white font-medium rounded-tr-none shadow-sm")
-                    : (isDarkMode ? "bg-black/40 border border-white/15 text-white rounded-tl-none" : "bg-slate-100 border border-slate-200 text-slate-900 rounded-tl-none shadow-sm")
+                    ? (isDarkMode ? "bg-amber-500/25 text-amber-100 border border-amber-400/40 rounded-tr-none" : "bg-amber-600 text-white font-medium rounded-tr-none shadow-sm")
+                    : (isDarkMode ? "bg-white/[0.06] border border-white/15 text-white rounded-tl-none" : "bg-white/80 border border-slate-200 text-slate-900 rounded-tl-none shadow-sm")
                 }`}>
                   {msg.content}
                 </div>
@@ -384,8 +384,8 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
           </div>
 
           {/* Chat Input Bar */}
-          <form onSubmit={handleChat} className={`flex-none p-3 border-t flex gap-2 ${
-            isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200 bg-slate-50'
+          <form onSubmit={handleChat} className={`flex-none p-3 border-t flex gap-2 backdrop-blur-md ${
+            isDarkMode ? 'border-white/10 bg-black/20' : 'border-slate-200/80 bg-white/40'
           }`}>
             <input 
               type="text"
@@ -393,16 +393,16 @@ export default function CharacterPanel({ initialTab = "chat" }: CharacterPanelPr
               onChange={e => setInput(e.target.value)}
               placeholder={`Interrogate ${character.name.split(' ')[0]} at sequence ${currentSequence}...`}
               disabled={loading}
-              className={`flex-1 border rounded-lg px-3 py-2 text-xs sm:text-sm font-serif transition-colors disabled:opacity-50 ${
+              className={`flex-1 border rounded-xl px-3.5 py-2 text-xs sm:text-sm font-serif transition-colors disabled:opacity-50 backdrop-blur-md ${
                 isDarkMode 
-                  ? "bg-black/40 border-white/15 text-white focus:border-canon" 
-                  : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-amber-500 shadow-inner"
+                  ? "bg-black/30 border-white/15 text-white placeholder:text-slate-500 focus:border-canon" 
+                  : "bg-white/80 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-amber-500 shadow-sm"
               }`}
             />
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              className="bg-amber-500 hover:bg-amber-400 text-black px-3 py-2 rounded-lg font-mono text-xs font-bold uppercase disabled:opacity-40 transition-all flex items-center justify-center shrink-0 shadow-md"
+              className="bg-amber-500 hover:bg-amber-400 text-black px-3.5 py-2 rounded-xl font-mono text-xs font-bold uppercase disabled:opacity-40 transition-all flex items-center justify-center shrink-0 shadow-md"
             >
               {loading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
             </button>

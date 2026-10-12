@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Newsreader } from "next/font/google";
+import { Plus_Jakarta_Sans, JetBrains_Mono, Lora } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { AnimatedBackdrop } from "@/components/AnimatedBackdrop";
 import { NavbarHeader } from "@/components/NavbarHeader";
 
-const inter = Inter({ 
+const fontSans = Plus_Jakarta_Sans({ 
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-sans",
 });
 
 const jetbrains = JetBrains_Mono({ 
@@ -15,10 +15,10 @@ const jetbrains = JetBrains_Mono({
   variable: "--font-jetbrains",
 });
 
-const newsreader = Newsreader({ 
+const lora = Lora({ 
   subsets: ["latin"],
   style: ['normal', 'italic'],
-  variable: "--font-newsreader",
+  variable: "--font-serif",
 });
 
 export const metadata: Metadata = {
@@ -34,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${jetbrains.variable} ${newsreader.variable} antialiased min-h-screen flex flex-col text-foreground transition-colors duration-400`}
+        className={`${fontSans.variable} ${jetbrains.variable} ${lora.variable} antialiased min-h-screen flex flex-col text-foreground transition-colors duration-400`}
       >
         <Providers>
           <AnimatedBackdrop />

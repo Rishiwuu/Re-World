@@ -43,9 +43,65 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-inter), sans-serif;
+  font-family: "Candara", "Candara Light", "Optima", var(--font-sans), "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='8' cy='8' r='6' stroke='%23fbbf24' stroke-width='1.5' stroke-dasharray='2 2'/%3E%3Ccircle cx='8' cy='8' r='2.5' fill='%23ffffff'/%3E%3Cpolygon points='8,0 10,6 8,5 6,6' fill='%23fbbf24'/%3E%3Cpolygon points='16,8 10,10 11,8 10,6' fill='%23fbbf24'/%3E%3C/svg%3E") 8 8, auto;
+}
+
+input, button, textarea, select {
+  font-family: inherit;
+}
+
+/* ── Custom Re:World HUD Cursors ────────────────────────────── */
+
+/* 1. Normal Default Sci-Fi Pointer with Target Reticle (⊙) */
+.cursor-normal, body {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28' fill='none'%3E%3Cpath d='M2 2L11 23L14.5 14.5L23 11L2 2Z' fill='%23000000' opacity='0.35' transform='translate(1.5,1.5)'/%3E%3Cpath d='M2 2L11 23L14.5 14.5L23 11L2 2Z' fill='%23ffffff' stroke='%230f172a' stroke-width='1.8' stroke-linejoin='round'/%3E%3Ccircle cx='15' cy='15' r='5' stroke='%23fbbf24' stroke-width='1.5' fill='rgba(251,191,36,0.3)'/%3E%3Ccircle cx='15' cy='15' r='1.5' fill='%23fbbf24'/%3E%3C/svg%3E") 2 2, auto;
+}
+
+/* 2. Timeline Seeker Crosshair (⌖) */
+.cursor-timeline {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='12' cy='12' r='7' stroke='%23fbbf24' stroke-width='1.5'/%3E%3Cline x1='12' y1='1' x2='12' y2='6' stroke='%23ffffff' stroke-width='1.5'/%3E%3Cline x1='12' y1='18' x2='12' y2='23' stroke='%23ffffff' stroke-width='1.5'/%3E%3Cline x1='1' y1='12' x2='6' y2='12' stroke='%23ffffff' stroke-width='1.5'/%3E%3Cline x1='18' y1='12' x2='23' y2='12' stroke='%23ffffff' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23fbbf24'/%3E%3C/svg%3E") 12 12, crosshair !important;
+}
+
+/* 3. Event Diamond Node Cursor (◇) */
+.cursor-event {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpolygon points='12,2 22,12 12,22 2,12' stroke='%23fbbf24' stroke-width='1.8' fill='rgba(251,191,36,0.25)'/%3E%3Cpolygon points='12,6 18,12 12,18 6,12' stroke='%23ffffff' stroke-width='1.2'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23ffffff'/%3E%3C/svg%3E") 12 12, pointer !important;
+}
+
+/* 4. Character Iris Focus Cursor (◉) */
+.cursor-character {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='12' cy='12' r='8' stroke='%232dd4bf' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%232dd4bf'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='12' cy='12' r='10' stroke='%23ffffff' stroke-width='0.8' opacity='0.7'/%3E%3C/svg%3E") 12 12, pointer !important;
+}
+
+/* 5. Branch Fork Bifurcation Cursor (⑂) */
+.cursor-branch {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 19C6 15 9 12 12 12C15 12 18 9 18 5M6 19V5M6 19C6 21 6 22 6 22' stroke='%23c084fc' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='6' cy='5' r='3' fill='%23c084fc' stroke='%23ffffff' stroke-width='1'/%3E%3Ccircle cx='18' cy='5' r='3' fill='%2322d3ee' stroke='%23ffffff' stroke-width='1'/%3E%3Ccircle cx='6' cy='19' r='3' fill='%23c084fc' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E") 12 12, pointer !important;
+}
+
+/* 6. What-If Temporal Starburst Cursor (✦) */
+.cursor-whatif {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M12 1L14.5 9.5L23 12L14.5 14.5L12 23L9.5 14.5L1 12L9.5 9.5L12 1Z' fill='rgba(192,132,252,0.3)' stroke='%23c084fc' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2.5' fill='%23ffffff'/%3E%3Cpath d='M12 6L13 11L18 12L13 13L12 18L11 13L6 12L11 11L12 6Z' fill='%2322d3ee'/%3E%3C/svg%3E") 12 12, pointer !important;
+}
+
+/* 7. Contradiction Hazard Alert Cursor (⚠) */
+.cursor-contradiction {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpolygon points='12,2 23,21 1,21' stroke='%23f43f5e' stroke-width='1.8' fill='rgba(244,63,94,0.25)'/%3E%3Cline x1='12' y1='8' x2='12' y2='14' stroke='%23ffffff' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='18' r='1.2' fill='%23ffffff'/%3E%3C/svg%3E") 12 12, help !important;
+}
+
+/* 8. Dossier Concentric Radar Cursor (◎) */
+.cursor-dossier {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='12' cy='12' r='9' stroke='%232dd4bf' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='5.5' stroke='%23fbbf24' stroke-width='1.2' stroke-dasharray='2 2'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23ffffff'/%3E%3C/svg%3E") 12 12, pointer !important;
+}
+
+/* 9. Dragging & Grabbing Precision Cyber Hand (✋) */
+.cursor-grab, [class*="cursor-grab"] {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28' fill='none'%3E%3Cpath d='M9 13V5a1.8 1.8 0 0 1 3.6 0v6m0-4.5a1.8 1.8 0 0 1 3.6 0v4.5m0-3a1.8 1.8 0 0 1 3.6 0v6.5c0 4.5-3 7.5-7.2 7.5-4 0-6.5-2.8-6.5-6.5v-4.5a1.8 1.8 0 0 1 3.6 0v3' stroke='%23000000' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M9 13V5a1.8 1.8 0 0 1 3.6 0v6m0-4.5a1.8 1.8 0 0 1 3.6 0v4.5m0-3a1.8 1.8 0 0 1 3.6 0v6.5c0 4.5-3 7.5-7.2 7.5-4 0-6.5-2.8-6.5-6.5v-4.5a1.8 1.8 0 0 1 3.6 0v3' fill='rgba(251,191,36,0.35)' stroke='%23fbbf24' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='13' cy='17' r='2' fill='%23ffffff' stroke='%230f172a' stroke-width='1'/%3E%3C/svg%3E") 13 13, grab !important;
+}
+
+.cursor-grabbing, [class*="cursor-grabbing"] {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28' fill='none'%3E%3Cpath d='M8 12c0-2.5 1.8-3.5 3.5-3.5a1.8 1.8 0 0 1 2.5 1 1.8 1.8 0 0 1 2.5 1 1.8 1.8 0 0 1 2.5 1v4.5c0 3.8-2.8 6.5-6.5 6.5-3.5 0-5.5-2.5-5.5-6v-4Z' stroke='%23000000' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M8 12c0-2.5 1.8-3.5 3.5-3.5a1.8 1.8 0 0 1 2.5 1 1.8 1.8 0 0 1 2.5 1 1.8 1.8 0 0 1 2.5 1v4.5c0 3.8-2.8 6.5-6.5 6.5-3.5 0-5.5-2.5-5.5-6v-4Z' fill='%23fbbf24' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='14' cy='14' r='2.5' fill='%23ffffff' stroke='%230f172a' stroke-width='1'/%3E%3Cline x1='9' y1='12' x2='18' y2='12' stroke='%230f172a' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, grabbing !important;
 }
 
 /* Light mode overrides for clean high-contrast readability */
@@ -104,4 +160,71 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary-muted);
+}
+
+/* ── Continuous Luminous Laser & Quantum Energy Flow (Left-to-Right) ── */
+@keyframes continuousEnergyWave {
+  0% {
+    stroke-dashoffset: 320;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes continuousEnergyWaveFast {
+  0% {
+    stroke-dashoffset: 240;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes continuousLaserCore {
+  0% {
+    stroke-dashoffset: 180;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes continuousLuminescenceHum {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Continuous high-density fluid waves with seamless looping */
+.continuous-plasma-beam {
+  stroke-linecap: round;
+  animation: continuousLuminescenceHum 2.5s ease-in-out infinite;
+}
+
+.continuous-energy-wave {
+  stroke-linecap: round;
+  stroke-dasharray: 90 30 140 30;
+  animation: continuousEnergyWave 2.8s linear infinite;
+}
+
+.continuous-energy-wave-fast {
+  stroke-linecap: round;
+  stroke-dasharray: 70 20 110 20;
+  animation: continuousEnergyWaveFast 1.6s linear infinite;
+}
+
+.continuous-laser-core {
+  stroke-linecap: round;
+  stroke-dasharray: 50 25 80 25;
+  animation: continuousLaserCore 1.5s linear infinite;
+}
+
+.continuous-laser-core-fast {
+  stroke-linecap: round;
+  stroke-dasharray: 40 15 65 15;
+  animation: continuousLaserCore 0.95s linear infinite;
 }

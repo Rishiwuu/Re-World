@@ -16,10 +16,18 @@ def get_llm():
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
 
-    model_name = getattr(settings, "llm_model", "gemini-3.6-flash") or "gemini-3.6-flash"
+    configured_model = getattr(settings, "llm_model", "gemini-3.8-flash") or os.getenv("LLM_MODEL", "gemini-3.8-flash")
+    if configured_model in ("gemini-3.6-flash", "gemini-1.5-flash", None, ""):
+        configured_model = "gemini-3.8-flash"
 
-    # Try preferred model or standard valid Gemini models
-    for m in [model_name, "gemini-3.6-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+    models_to_try = [
+        configured_model,
+        "gemini-3.8-flash",
+        "gemini-3.8-pro",
+        "gemini-2.5-flash",
+    ]
+
+    for m in models_to_try:
         try:
             return ChatGoogleGenerativeAI(
                 model=m,
@@ -32,9 +40,8 @@ def get_llm():
             logger.warning("Failed to initialize model %s: %s", m, exc)
             continue
 
-
     return ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-3.8-flash",
         google_api_key=api_key,
         temperature=0.7,
         timeout=15,

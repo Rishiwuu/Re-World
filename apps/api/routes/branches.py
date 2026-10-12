@@ -19,45 +19,43 @@ logger = logging.getLogger("reworld")
 _narrative_agent = None
 
 
-def _generate_heuristic_story_beat(change: str, event: Event) -> dict[str, str]:
-    """Generate a creative rule-synthesized narrative beat when LLM is offline or rate-limited."""
+def _generate_heuristic_story_beat(change: str, event: Event, index: int = 0, total: int = 1) -> dict[str, str]:
+    """Generate a creative progressive narrative beat when LLM is offline or rate-limited."""
     change_clean = change.strip().rstrip(".")
-    lower_change = change_clean.lower()
-    lower_desc = event.description.lower()
+    clean_title = re.sub(r"^(Alternate Outcome:|Divergence:|Child Branch:|Shifted Plot:)\s*", "", event.title, flags=re.IGNORECASE).strip()
 
-    if "pebble" in lower_change or "stone" in lower_change:
-        if "pebble" in lower_desc or "stone" in lower_desc or "picking up" in lower_desc:
-            return {
-                "title": "Searching for an Alternate Solution",
-                "description": (
-                    f"Finding no pebbles anywhere in the area, the crow was forced to abandon his stone strategy. "
-                    f"He frantically searched the ground for alternative tools, discovering a long, hollow twig nearby to use as a straw."
-                ),
-            }
-        elif "high enough" in lower_desc or "drink" in lower_desc or "plan had worked" in lower_desc:
-            return {
-                "title": "A New Way to Quench Thirst",
-                "description": (
-                    f"Without stones to raise the water level, the traditional method failed. "
-                    f"Instead, the crow cleverly leveraged the hollow twig, siphoning the cool water from the deep jug until his thirst was finally quenched."
-                ),
-            }
-        elif "heavy" in lower_desc or "tilt" in lower_desc or "push" in lower_desc:
-            return {
-                "title": "Struggling Without Stones",
-                "description": (
-                    f"Realizing that pebbles were nowhere to be found, the crow threw his full weight against the heavy jug, "
-                    f"desperately trying to tilt the pitcher and spill the water before exhaustion set in."
-                ),
-            }
+    phases = [
+        ("Immediate Aftermath", "In the immediate wake of the divergence,"),
+        ("Cascade Effect", "As consequence ripples through the timeline,"),
+        ("New Complication", "An unforeseen development emerges when"),
+        ("Tipping Point", "The tension escalates dramatically as"),
+        ("Alternate Climax", "The altered timeline reaches a pivotal turning point:"),
+        ("Altered Resolution", "The final outcome of this divergent path crystallizes:"),
+    ]
+    phase_title, phase_intro = phases[min(index, len(phases) - 1)]
 
-    # Clean existing title prefixes for child branch narrative generation
-    clean_title = re.sub(r"^(Alternate Outcome:|Divergence:|Child Branch:)\s*", "", event.title, flags=re.IGNORECASE).strip()
+    new_title = f"{phase_title}: {clean_title}"
+    base_desc = event.description.strip()
+    if not base_desc.endswith("."):
+        base_desc += "."
 
-    # Contextual narrative adaptation
-    new_title = f"Alternate Outcome: {clean_title}"
-    adapted_desc = event.description.replace("His plan had worked!", "His original plan had to adapt immediately.")
-    new_desc = f"Under the new premise where {change_clean}, {adapted_desc} The situation developed in an unforeseen direction, forcing the characters to react to the new reality."
+    if index == 0:
+        new_desc = (
+            f"{phase_intro} the premise holds: \"{change_clean}\". "
+            f"This immediately changes what was supposed to happen ({clean_title.lower()}). "
+            f"Characters in attendance must react to this new reality on the spot."
+        )
+    elif index == total - 1:
+        new_desc = (
+            f"{phase_intro} the culmination of events diverges permanently from the original record. "
+            f"Rather than the original sequence ({clean_title.lower()}), "
+            f"new truths come to light that resolve this branch with lasting impact."
+        )
+    else:
+        new_desc = (
+            f"{phase_intro} the ripple effects alter how {clean_title.lower()} unfolds. "
+            f"Witnesses, evidence, and character allegiances shift, creating new tensions."
+        )
 
     return {
         "title": new_title[:120],
@@ -65,65 +63,97 @@ def _generate_heuristic_story_beat(change: str, event: Event) -> dict[str, str]:
     }
 
 
-
 def _alternate_outcomes(change: str, events: list[Event]) -> dict[str, dict[str, str]]:
-    """Generate a distinct downstream story based strictly on the user's What-If hypothesis."""
+    """Generate distinct downstream sequential scene beats based strictly on the user's What-If premise."""
     if not events:
         return {}
-    
+
+    total_evs = len(events)
     fallback = {
-        event.id: _generate_heuristic_story_beat(change, event)
-        for event in events
+        event.id: _generate_heuristic_story_beat(change, event, index=i, total=total_evs)
+        for i, event in enumerate(events)
     }
-    
+
     try:
         from config.llm import get_llm
         llm = get_llm()
+        logger.info("Generating alternate outcomes with LLM for change: %s", change)
         source = "\n".join(
             f"ID: {event.id} | Sequence: {event.sequence} | Original Title: {event.title} | Original Beat: {event.description}"
             for event in events[:12]
         )
-        
+
         prompt = (
-            f"You are a creative story author rewriting a narrative timeline based on a 'What-If' premise.\n\n"
+            f"You are a master fiction author rewriting a narrative timeline based on a 'What-If' premise.\n\n"
             f"WHAT-IF PREMISE:\n"
             f"\"{change}\"\n\n"
-            f"ORIGINAL DOWNSTREAM STORY BEATS:\n{source}\n\n"
+            f"ORIGINAL DOWNSTREAM STORY BEATS (CHRONOLOGICAL SEQUENCE):\n{source}\n\n"
             f"TASK:\n"
-            f"Rewrite each downstream story event into an engaging, realistic alternative plot beat. "
-            f"Show how the narrative naturally changes as a result of the premise. "
-            f"DO NOT use meta-phrases like 'As a consequence of', 'unfolds differently', or 'The characters must respond'. "
-            f"Write direct, immersive story narrative for each event.\n\n"
-            f"Output Requirement: Return ONLY a valid JSON array matching this format:\n"
+            f"Rewrite EACH of the downstream story beats into a realistic, dramatic alternate scene that follows chronologically from the What-If premise.\n\n"
+            f"CRITICAL REQUIREMENTS:\n"
+            f"1. Each sequence beat MUST be a DISTINCT, progressive scene describing only what happens in that specific sequence beat.\n"
+            f"2. DO NOT output the whole story in one beat and DO NOT repeat the same narrative across beats.\n"
+            f"3. Beat 1 after divergence shows immediate reaction, Beat 2 shows escalating conflict/investigation, subsequent beats show the new climax and resolution.\n"
+            f"4. Describe specific actions, character dialogue, clues, and revelations.\n"
+            f"5. Provide an alternate title and description for EVERY event ID listed above.\n\n"
+            f"Output Requirement: Return ONLY a valid JSON array of objects:\n"
             f"[\n"
             f"  {{\n"
-            f"    \"id\": \"event_id_here\",\n"
-            f"    \"title\": \"Immersive Alternate Event Title\",\n"
-            f"    \"description\": \"Rich 2-3 sentence story description of what actually happens in this alternate branch.\"\n"
+            f"    \"id\": \"exact_event_id_from_above\",\n"
+            f"    \"sequence\": 6,\n"
+            f"    \"title\": \"Dramatic Alternate Event Title\",\n"
+            f"    \"description\": \"Immersive 2-4 sentence story narrative detailing what specifically happens in this beat.\"\n"
             f"  }}\n"
             f"]"
         )
-        
+
         response = llm.invoke(prompt)
-        content = response.content if isinstance(response.content, str) else str(response.content)
-        
+        content = response.content
+        if isinstance(content, list):
+            content = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        elif not isinstance(content, str):
+            content = str(content)
+
         # Clean markdown wrappers if present
-        content = re.sub(r"^```json\s*", "", content, flags=re.MULTILINE)
-        content = re.sub(r"^```\s*", "", content, flags=re.MULTILINE)
-        
+        content = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.MULTILINE)
+        content = re.sub(r"\s*```$", "", content, flags=re.MULTILINE)
+
         match = re.search(r"\[\s*\{.*\}\s*\]", content, re.DOTALL)
         if match:
             generated = json.loads(match.group(0))
+            by_id = {str(item.get("id", "")).strip(): item for item in generated if item.get("id")}
+            by_seq = {}
             for item in generated:
-                event_id = item.get("id")
-                if event_id in fallback and item.get("description"):
-                    fallback[event_id] = {
-                        "title": str(item.get("title") or fallback[event_id]["title"])[:120],
-                        "description": str(item["description"])[:1000],
-                    }
+                if item.get("sequence") is not None:
+                    try:
+                        by_seq[int(item["sequence"])] = item
+                    except (ValueError, TypeError):
+                        pass
+
+            for i, event in enumerate(events):
+                item = (
+                    by_id.get(event.id)
+                    or by_id.get(f"{event.story_id}_event_{event.sequence}")
+                    or by_id.get(f"event_{event.sequence}")
+                    or by_id.get(str(event.sequence))
+                    or by_seq.get(event.sequence)
+                    or (generated[i] if i < len(generated) and isinstance(generated[i], dict) else None)
+                )
+                if item and item.get("description"):
+                    desc = str(item["description"]).strip()
+                    title = str(item.get("title") or fallback[event.id]["title"]).strip()
+                    if desc:
+                        fallback[event.id] = {
+                            "title": title[:120],
+                            "description": desc[:1000],
+                        }
+            logger.info("Successfully generated %d alternate beats via LLM.", len(generated))
     except Exception as exc:
-        logger.warning("Alternate story generation used rule-synthesized narrative fallback: %s", exc)
-        
+        logger.warning("Alternate story generation used fallback narrative: %s", exc)
+
     return fallback
 
 

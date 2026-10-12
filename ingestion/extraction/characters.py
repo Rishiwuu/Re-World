@@ -18,8 +18,6 @@ def extract_characters(text: str) -> list[CharacterState]:
 
     # Try LLM-based extraction first
     try:
-        if os.getenv("USE_LLM_INGESTION", "false").lower() != "true":
-            raise RuntimeError("LLM ingestion disabled; using fast local extraction")
         from config.llm import get_llm
         llm = get_llm()
         if llm:
