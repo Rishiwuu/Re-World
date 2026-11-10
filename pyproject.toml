@@ -54,3 +54,7 @@ target-version = "py311"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.vercel]
+entrypoint = "apps.api.main:app"
+
+

@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 import os
+import tempfile
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
+def _get_default_database_url() -> str:
+    # On Vercel / AWS Lambda serverless environments, the root directory is read-only.
+    # Writable disk space is restricted to /tmp.
+    if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        return "sqlite:////tmp/reworld.db"
+    return "sqlite:///./reworld.db"
+
+
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "sqlite:///./reworld.db",
+    _get_default_database_url(),
 )
+
 
 
 class Base(DeclarativeBase):
