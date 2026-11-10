@@ -1,4 +1,10 @@
-export const API_BASE = 'http://localhost:8000/api';
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined"
+    ? "/api"
+    : process.env.API_URL
+      ? `${process.env.API_URL}/api`
+      : "http://localhost:8000/api");
 
 async function errorMessage(res: Response, fallback: string): Promise<string> {
   try {
